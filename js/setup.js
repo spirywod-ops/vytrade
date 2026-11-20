@@ -66,17 +66,17 @@
     return pad(p.h) + ':' + pad(p.mi);
   }
 
-  // Sesi buka 08:00 sampai 17:00 waktu setempat. Jam ditampilkan dalam WIB (Asia/Jakarta).
+  // Jam buka/tutup setempat tiap sesi. Jam ditampilkan dalam WIB (Asia/Jakarta); DST ikut dihitung Intl.
   var SESSIONS = [
-    { id: 'london', name: 'London', zone: 'Europe/London' },
-    { id: 'newyork', name: 'New York', zone: 'America/New_York' }
+    { id: 'asia', name: 'Asia (Tokyo)', zone: 'Asia/Tokyo', open: 9, close: 18 },
+    { id: 'london', name: 'London', zone: 'Europe/London', open: 8, close: 17 },
+    { id: 'newyork', name: 'New York', zone: 'America/New_York', open: 8, close: 17 }
   ];
-  var OPEN_H = 8, CLOSE_H = 17;
 
   function sessionInfo(s, nowMs) {
     var p = parts(nowMs, s.zone);
-    var startMs = zonedToMs(p.y, p.mo, p.d, OPEN_H, 0, s.zone);
-    var endMs = zonedToMs(p.y, p.mo, p.d, CLOSE_H, 0, s.zone);
+    var startMs = zonedToMs(p.y, p.mo, p.d, s.open, 0, s.zone);
+    var endMs = zonedToMs(p.y, p.mo, p.d, s.close, 0, s.zone);
     var weekend = p.wd === 'Sat' || p.wd === 'Sun';
     var state = weekend ? 'weekend' : nowMs < startMs ? 'belum' : nowMs < endMs ? 'aktif' : 'tutup';
     return {
@@ -89,17 +89,27 @@
     return SESSIONS.map(function (s) { return sessionInfo(s, nowMs); });
   }
 
+  function sessionById(id) {
+    return SESSIONS.filter(function (s) { return s.id === id; })[0];
+  }
+
   // Overlap London x New York (WIB), atau null kalau tidak ada.
   function overlap(nowMs) {
-    var a = sessionInfo(SESSIONS[0], nowMs), b = sessionInfo(SESSIONS[1], nowMs);
+    var a = sessionInfo(sessionById('london'), nowMs), b = sessionInfo(sessionById('newyork'), nowMs);
     var s = Math.max(a.startMs, b.startMs), e = Math.min(a.endMs, b.endMs);
     return e > s ? hhmm(s, 'Asia/Jakarta') + '–' + hhmm(e, 'Asia/Jakarta') + ' WIB' : null;
+  }
+
+  // Menit sejak 00:00 WIB (0-1439) untuk waktu ms: dipakai garis waktu 24 jam di halaman sesi.
+  function wibMinutes(ms) {
+    var p = parts(ms, 'Asia/Jakarta');
+    return p.h * 60 + p.mi;
   }
 
   var STATE_TEXT = { aktif: 'Aktif', belum: 'Belum buka', tutup: 'Sudah tutup', weekend: 'Akhir pekan' };
 
   global.VySetup = {
     evaluate: evaluate, nextClose: nextClose, fmtCountdown: fmtCountdown,
-    sessions: sessions, overlap: overlap, hhmm: hhmm, STATE_TEXT: STATE_TEXT
+    sessions: sessions, overlap: overlap, hhmm: hhmm, wibMinutes: wibMinutes, STATE_TEXT: STATE_TEXT
   };
 })(window);

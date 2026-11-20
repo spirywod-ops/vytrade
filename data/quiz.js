@@ -10,7 +10,8 @@ window.QUIZ_CATS = [
   { id: 'struktur', title: 'Struktur', desc: 'HH/HL/LH/LL, BOS, CHoCH' },
   { id: 'zona', title: 'Zona', desc: 'FVG, IFVG, OB + tebak zona di chart' },
   { id: 'topdown', title: 'Top-down', desc: 'Urutan TF 1D sampai 1m' },
-  { id: 'checklist', title: 'Checklist / Eksekusi', desc: 'Syarat setup, RR, waktu candle close' }
+  { id: 'checklist', title: 'Checklist / Eksekusi', desc: 'Syarat setup, RR, waktu candle close' },
+  { id: 'lanjut', title: 'Lanjut', desc: 'Liquidity sweep, premium/discount, SMT, sesi' }
 ];
 
 window.QUIZ = [
@@ -148,5 +149,79 @@ window.QUIZ = [
     expl: 'Hindari entry 1–2 menit sebelum rilis berita besar karena harga bisa melonjak tidak terduga.' },
   { id: 'c8', cat: 'checklist', type: 'mc', tag: 'checklist', q: 'Mana yang termasuk BONUS (bukan syarat wajib)?',
     options: ['SMT mendukung', 'Bias 1D/4H searah entry', 'Konfirmasi body close di TF entry', 'SL di luar zona'], answer: 0,
-    expl: 'SMT (divergensi aset berkorelasi) adalah bonus. Tiga lainnya termasuk syarat wajib.' }
+    expl: 'SMT (divergensi aset berkorelasi) adalah bonus. Tiga lainnya termasuk syarat wajib.' },
+
+  /* ---------- Lanjut: liquidity sweep ---------- */
+  { id: 'l1', cat: 'lanjut', type: 'mc', tag: 'liquidity', q: 'Apa itu liquidity sweep?',
+    options: ['Wick melewati equal high/low lalu candle close kembali ke dalam', 'Body close menembus level dan bertahan', 'Celah harga dari 3 candle', 'Candle turun terakhir sebelum naik kuat'], answer: 0,
+    expl: 'Sweep = wick melewati level lalu close kembali ke dalam. Kalau body close menembus dan bertahan, itu BOS.' },
+  { id: 'l2', cat: 'lanjut', type: 'tf', tag: 'liquidity', q: 'Dua low yang sejajar disebut EQL (equal low) dan sering menjadi target liquidity.', answer: true,
+    expl: 'EQL dan EQH adalah tempat order menumpuk, jadi sering disapu harga. Setelah disapu, harga sering berbalik.' },
+  { id: 'l3', cat: 'lanjut', type: 'mc', tag: 'liquidity', q: 'Candle body close di bawah EQL dan harga tidak kembali di atasnya. Ini disebut?',
+    options: ['BOS (bukan sweep)', 'Sweep', 'FVG', 'Premium'], answer: 0,
+    expl: 'Body close menembus dan bertahan = struktur tembus (BOS), bukan sweep. Sweep butuh close kembali ke dalam.' },
+  { id: 'l4', cat: 'lanjut', type: 'tf', tag: 'liquidity', q: 'Setelah sweep, entry boleh langsung di ujung wick tanpa FVG atau OB.', answer: false,
+    expl: 'Sweep hanya konfirmasi. Zona entry tetap FVG atau OB.' },
+  { id: 'l5', cat: 'lanjut', type: 'mc', tag: 'liquidity', q: 'Harga menyapu EQH lalu close kembali di bawahnya. Bias yang masuk akal setelah ada konfirmasi?',
+    options: ['Turun (sell)', 'Naik (buy)', 'Tidak berpengaruh', 'Pasti sideways'], answer: 0,
+    expl: 'Order di atas EQH sudah diambil, jadi harga sering berbalik turun. Tetap tunggu CHoCH dan entry di FVG atau OB.' },
+  { id: 'l6', cat: 'lanjut', type: 'mc', tag: 'liquidity', q: 'Wick sebuah candle melewati EQH, tetapi candle itu close di bawah EQH. Apa namanya?',
+    options: ['Sweep', 'BOS', 'CHoCH', 'IFVG'], answer: 0,
+    expl: 'Wick lewat lalu close kembali ke dalam = sweep. Itu bukan BOS maupun CHoCH.' },
+
+  /* ---------- Lanjut: premium / discount ---------- */
+  { id: 'p1', cat: 'lanjut', type: 'mc', tag: 'premdisc', q: 'Area di atas titik 50% sebuah range disebut?',
+    options: ['Premium', 'Discount', 'Sweep', 'Imbalance'], answer: 0,
+    expl: 'Di atas 50% = premium (relatif mahal), di bawah 50% = discount (relatif murah).' },
+  { id: 'p2', cat: 'lanjut', type: 'mc', tag: 'premdisc', q: 'Buy paling baik dicari di area mana?',
+    options: ['Discount (di bawah 50%)', 'Premium (di atas 50%)', 'Tepat di atas high', 'Mana saja'], answer: 0,
+    expl: 'Buy di discount, sell di premium. Tetap pakai FVG atau OB sebagai zona entry.' },
+  { id: 'p3', cat: 'lanjut', type: 'tf', tag: 'premdisc', q: 'Sell dicari di premium, yaitu di atas 50% range.', answer: true,
+    expl: 'Premium adalah area relatif mahal, cocok untuk sell. Zona entry tetap FVG atau OB.' },
+  { id: 'p4', cat: 'lanjut', type: 'tf', tag: 'premdisc', q: 'Buy di premium tetap valid asalkan harga sedang naik cepat.', answer: false,
+    expl: 'Buy di premium berarti membeli di harga relatif mahal. Setup itu belum valid walau harga sedang naik.' },
+  { id: 'p5', cat: 'lanjut', type: 'mc', tag: 'premdisc', q: 'Range untuk premium/discount ditarik dari mana ke mana?',
+    options: ['Swing low ke swing high terakhir (atau sebaliknya)', 'Open ke close candle terakhir', 'Dua candle terakhir', 'High kemarin saja'], answer: 0,
+    expl: 'Range dibuat dari swing low dan swing high terakhir yang sudah terkonfirmasi. Titik tengahnya adalah 50%.' },
+  { id: 'p6', cat: 'lanjut', type: 'mc', tag: 'premdisc', q: 'FVG berada di 2644.6–2651.6, sedangkan range 2640–2680 (50% = 2660). Zona ini?',
+    options: ['Discount, cocok untuk buy', 'Premium, cocok untuk buy', 'Discount, cocok untuk sell', 'Tepat di 50%'], answer: 0,
+    expl: 'Seluruh zona ada di bawah 2660, jadi di discount dan cocok untuk buy. Tetap butuh syarat lain di checklist.' },
+
+  /* ---------- Lanjut: SMT ---------- */
+  { id: 'm1', cat: 'lanjut', type: 'mc', tag: 'smt', q: 'Apa itu SMT divergence?',
+    options: ['Dua aset berkorelasi tidak kompak: satu membuat high/low baru, yang lain gagal', 'Dua aset sama-sama membuat high baru', 'Celah harga antar sesi', 'Equal high yang disapu'], answer: 0,
+    expl: 'Contohnya XAUUSD membuat low baru tetapi XAGUSD tidak. Itu hanya konfirmasi tambahan.' },
+  { id: 'm2', cat: 'lanjut', type: 'mc', tag: 'smt', q: 'XAUUSD membuat HH, XAGUSD membuat LH. Ini SMT apa?',
+    options: ['Bearish', 'Bullish', 'Bukan SMT', 'Sweep bullish'], answer: 0,
+    expl: 'Satu aset membuat high baru, aset lain gagal = SMT bearish. Entry tetap di FVG atau OB.' },
+  { id: 'm3', cat: 'lanjut', type: 'mc', tag: 'smt', q: 'XAUUSD membuat LL, XAGUSD membuat HL. Ini SMT apa?',
+    options: ['Bullish', 'Bearish', 'Bukan SMT', 'Sama dengan CHoCH'], answer: 0,
+    expl: 'Satu aset membuat low baru sementara aset lain gagal = SMT bullish.' },
+  { id: 'm4', cat: 'lanjut', type: 'tf', tag: 'smt', q: 'Kalau XAUUSD dan XAGUSD sama-sama membuat low baru, itu tetap dihitung SMT.', answer: false,
+    expl: 'Itu justru kompak, tidak ada divergensi. Downtrend dikonfirmasi, bukan SMT.' },
+  { id: 'm5', cat: 'lanjut', type: 'tf', tag: 'smt', q: 'SMT cukup dijadikan satu-satunya alasan untuk entry.', answer: false,
+    expl: 'SMT hanya konfirmasi tambahan. Entry tetap butuh zona FVG atau OB dan syarat wajib di checklist.' },
+  { id: 'm6', cat: 'lanjut', type: 'mc', tag: 'smt', q: 'Mana pasangan aset yang cocok untuk dibandingkan dalam SMT?',
+    options: ['US30 dan NAS100', 'XAUUSD dan EURGBP', 'Satu aset di dua TF berbeda', 'Aset yang tidak punya hubungan'], answer: 0,
+    expl: 'SMT membandingkan aset berkorelasi di TF yang sama, misalnya XAUUSD–XAGUSD atau US30/NAS100/SPX500.' },
+
+  /* ---------- Lanjut: sesi ---------- */
+  { id: 'n1', cat: 'lanjut', type: 'mc', tag: 'sesi', q: 'Kapan likuiditas biasanya paling ramai?',
+    options: ['Saat overlap London dan New York', 'Saat sesi Asia', 'Akhir pekan', 'Setelah New York tutup'], answer: 0,
+    expl: 'Overlap London + New York biasanya paling ramai. Sesi Asia cenderung lebih tenang.' },
+  { id: 'n2', cat: 'lanjut', type: 'tf', tag: 'sesi', q: 'Jam sesi dalam WIB bergeser saat DST, jadi aplikasi menghitungnya dengan Intl.DateTimeFormat.', answer: true,
+    expl: 'London dan New York memakai DST, jadi jamnya dalam WIB berubah dua kali setahun. Karena itu jam tidak ditulis tetap.' },
+  { id: 'n3', cat: 'lanjut', type: 'mc', tag: 'sesi', q: 'High dan low sesi mana yang sering disapu saat London buka?',
+    options: ['Sesi Asia', 'Sesi New York', 'Semua sama', 'Tidak ada'], answer: 0,
+    expl: 'Sesi Asia biasanya sempit, jadi high dan low-nya sering jadi target liquidity saat London buka.' },
+  { id: 'n4', cat: 'lanjut', type: 'tf', tag: 'sesi', q: 'Sesi aktif adalah syarat wajib agar setup dinyatakan VALID.', answer: false,
+    expl: 'Sesi aktif hanya bonus. Syarat wajibnya ada lima: bias, area kerja, konfirmasi, entry di zona kecil, dan SL/TP.' },
+
+  /* ---------- Lanjut: tebak zona di chart ---------- */
+  { id: 'zt5', cat: 'lanjut', type: 'zone', tag: 'liquidity', ex: 'liq-bull', zoneKind: 'FVG', zone: { top: 2664.7, bottom: 2658.4 },
+    q: 'Chart ini punya sweep di bawah EQL. Ketuk FVG untuk entry LP.',
+    expl: 'FVG = celah antara high candle 1 (2658.4) dan low candle 3 (2664.7), tepat setelah impuls yang CHoCH.' },
+  { id: 'zt6', cat: 'lanjut', type: 'zone', tag: 'premdisc', ex: 'pd-buy', zoneKind: 'FVG', zone: { top: 2651.6, bottom: 2644.6 },
+    q: 'Range ini 2640–2680 (50% = 2660). Ketuk FVG di discount untuk entry LP.',
+    expl: 'FVG 2644.6–2651.6 ada di bawah garis 50%, jadi di discount dan cocok untuk buy.' }
 ];

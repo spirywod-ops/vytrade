@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Uji offline VyTrade</title></head>
+<body>
+<pre id="out">menjalankan...</pre>
+<script>
+/* Daftarkan service worker, tunggu aktif, lalu cek: cache bernama sesuai sw.js dan SEMUA file di FILES tersimpan.
+   Pakai: python -m http.server 8080, buka http://localhost:8080/tests/offline.html
+   Uji offline sungguhan: setelah SEMUA LOLOS, matikan server lalu muat ulang index.html (harus tetap tampil). */
+(function () {
+  var lines = [], fail = 0;
+  function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
+  function done() { lines.push(fail ? 'TOTAL GAGAL: ' + fail : 'SEMUA LOLOS'); document.getElementById('out').textContent = lines.join('\n'); try { navigator.sendBeacon('http://localhost:8081/report', lines.join('\n')); } catch (e) { /* hanya untuk uji otomatis */ } }
+  if (!('serviceWorker' in navigator)) { check(false, 'service worker didukung'); return done(); }
+  fetch('../sw.js').then(function (r) { return r.text(); }).then(function (src) {
+    var cache = (src.match(/const CACHE = '([^']+)'/) || [])[1];
+    var files = (src.match(/const FILES = \[([\s\S]*?)\];/) || [])[1].match(/'[^']+'/g).map(function (x) { return x.slice(1, -1); });
+    check(!!cache, 'nama cache di sw.js: ' + cache);
+    return navigator.serviceWorker.register('../sw.js').then(function (reg) {
+      return navigator.serviceWorker.ready.then(function () {
+        // beri waktu install selesai (addAll) lalu cek isi cache
+        return new Promise(function (res) { setTimeout(res, 1500); });
+      });
+    }).then(function () { return caches.keys(); }).then(function (keys) {
+      check(keys.indexOf(cache) >= 0, 'cache "' + cache + '" ada (semua cache: ' + keys.join(', ') + ')');
+      check(keys.length === 1, 'hanya satu cache tersisa (versi lama dihapus)');
+      return caches.open(cache).then(function (c) {
+        return Promise.all(files.map(function (f) {
+          var url = new URL(f, new URL('../', location.href)).href;
+          return c.match(url).then(function (hit) { return { f: f, ok: !!hit }; });
+        }));
+      });
+    }).then(function (res) {
+      var miss = res.filter(function (x) { return !x.ok; }).map(function (x) { return x.f; });
+      check(miss.length === 0, files.length + ' file di FILES tersimpan di cache' + (miss.length ? ' (kurang: ' + miss.join(', ') + ')' : ''));
+      ['liquidity', 'premdisc', 'smt'].forEach(function (k) {
+        check(files.indexOf('./data/examples/' + k + '.js') >= 0, 'FILES memuat data/examples/' + k + '.js');
+      });
+      done();
+    });
+  }).catch(function (e) { check(false, 'error: ' + e); done(); });
+})();
+</script>
+</body></html>

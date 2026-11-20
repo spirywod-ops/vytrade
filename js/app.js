@@ -69,7 +69,7 @@
 
   function exampleBlock(ex) {
     var box = h('div', { class: 'chart-box' });
-    var chart = window.VyChart.render(box, ex);
+    var chart = ex.pair ? window.VyChart.renderPair(box, ex) : window.VyChart.render(box, ex);
     var btn = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'false', text: 'Tampilkan zona' });
     btn.addEventListener('click', function () {
       var on = !chart.isOverlayOn();
@@ -91,25 +91,91 @@
     ]);
   }
 
-  function viewKonsep(id) {
-    var c = window.CONCEPTS.filter(function (x) { return x.id === id; })[0];
-    if (!c) return h('section', null, [h('a', { href: '#/belajar', class: 'back', text: '‹ Belajar' }), h('p', { text: 'Materi tidak ditemukan.' })]);
-    var root = h('section', null, [
-      h('a', { href: '#/belajar', class: 'back', text: '‹ Belajar' }),
-      h('h1', { text: c.title })
-    ]);
+  // Kartu materi 4 bagian: Apa itu / Cara melihat / Syarat valid / Kesalahan umum.
+  function conceptCard(c) {
     var card = h('div', { class: 'card' });
     [['Apa itu', c.apa], ['Cara melihat', c.cara], ['Syarat valid', c.syarat], ['Kesalahan umum', c.salah]].forEach(function (p) {
       card.appendChild(h('h3', { text: p[0] }));
       card.appendChild(h('p', { text: p[1] }));
     });
-    root.appendChild(card);
+    return card;
+  }
+
+  function viewKonsep(id) {
+    var c = window.CONCEPTS.filter(function (x) { return x.id === id; })[0];
+    if (!c) return h('section', null, [h('a', { href: '#/belajar', class: 'back', text: '‹ Belajar' }), h('p', { text: 'Materi tidak ditemukan.' })]);
+    if (c.page === 'sesi') return viewSesi(c);
+    var root = h('section', null, [
+      h('a', { href: '#/belajar', class: 'back', text: '‹ Belajar' }),
+      h('h1', { text: c.title })
+    ]);
+    root.appendChild(conceptCard(c));
     root.appendChild(h('h2', { text: 'Contoh chart' }));
     (window.EXAMPLES[c.examples] || []).forEach(function (ex) { root.appendChild(exampleBlock(ex)); });
     if (c.pilih && window.PILIH) {
       root.appendChild(h('h2', { text: window.PILIH.judul }));
       root.appendChild(h('div', { class: 'card' }, [h('p', { text: window.PILIH.teks })]));
     }
+    return root;
+  }
+
+  /* ---------- Sesi (dipakai tab Setup dan halaman materi Sesi) ---------- */
+  // Isi `box` dengan baris sesi (nama, jam WIB, status). opts.info = tambahkan penjelasan singkat tiap sesi.
+  function fillSessions(box, now, opts) {
+    var VS = window.VySetup;
+    box.innerHTML = '';
+    VS.sessions(now).forEach(function (s) {
+      box.appendChild(h('div', { class: 'row' }, [
+        h('span', { class: 'tfname', text: s.name }),
+        h('span', { class: 'muted small', text: s.wib }),
+        h('span', { class: 'pill' + (s.state === 'aktif' ? ' on' : ''), text: VS.STATE_TEXT[s.state] })
+      ]));
+      if (opts && opts.info && window.SESI.info[s.id]) box.appendChild(h('p', { class: 'small ses-info', text: window.SESI.info[s.id] }));
+    });
+    var ov = VS.overlap(now);
+    if (ov) box.appendChild(h('p', { class: 'small muted', text: 'Overlap London + New York: ' + ov }));
+  }
+
+  // Garis waktu 24 jam (WIB): batang tiap sesi + penanda "sekarang".
+  function sessionTimeline(now) {
+    var VS = window.VySetup, wrap = h('div', { class: 'tl' });
+    function pct(min) { return (Math.round(min / 14.4 * 100) / 100) + '%'; }
+    VS.sessions(now).forEach(function (s) {
+      var track = h('div', { class: 'tl-track' });
+      function seg(from, to) { track.appendChild(h('span', { class: 'tl-seg tl-' + s.id, style: 'left:' + pct(from) + ';width:' + pct(to - from) })); }
+      var a = VS.wibMinutes(s.startMs), b = VS.wibMinutes(s.endMs);
+      if (b > a) seg(a, b); else { seg(a, 1440); if (b > 0) seg(0, b); }
+      track.appendChild(h('span', { class: 'tl-now' }));
+      wrap.appendChild(h('div', { class: 'tl-row' }, [h('span', { class: 'tl-name', text: s.name }), track]));
+    });
+    wrap.appendChild(h('div', { class: 'tl-axis' }, ['00:00', '06:00', '12:00', '18:00', '24:00'].map(function (t) { return h('span', { text: t }); })));
+    wrap.moveNow = function (ms) {
+      var left = pct(VS.wibMinutes(ms));
+      Array.prototype.forEach.call(wrap.querySelectorAll('.tl-now'), function (n) { n.style.left = left; });
+    };
+    return wrap;
+  }
+
+  function viewSesi(c) {
+    var SI = window.SESI, VS = window.VySetup;
+    var root = h('section', null, [
+      h('a', { href: '#/belajar', class: 'back', text: '‹ Belajar' }),
+      h('h1', { text: c.title }),
+      conceptCard(c),
+      h('h2', { text: 'Jam sesi (WIB)' }),
+      h('p', { class: 'muted small', text: SI.intro })
+    ]);
+    var box = h('div', { class: 'card', id: 'sesi-box' }), tl = sessionTimeline(Date.now());
+    root.appendChild(box);
+    root.appendChild(h('h2', { text: 'Garis waktu 24 jam (WIB)' }));
+    root.appendChild(h('div', { class: 'card' }, [tl]));
+    root.appendChild(h('h2', { text: 'Kapan likuiditas biasanya meningkat' }));
+    root.appendChild(h('div', { class: 'card' }, [h('p', { text: SI.overlap })].concat(SI.tips.map(function (t) { return h('p', { class: 'small', text: '• ' + t }); }))));
+    root.appendChild(h('a', { href: '#/setup', class: 'btn', text: 'Ke checklist setup ›' }));
+    function tick() { var now = Date.now(); fillSessions(box, now, { info: true }); tl.moveNow(now); }
+    tick();
+    var timer = setInterval(tick, 1000);
+    cleanup = function () { clearInterval(timer); };
     return root;
   }
 
@@ -208,7 +274,9 @@
       });
       boxes[item.id] = cb;
       labels[item.id] = h('span', { text: text });
-      return h('label', { class: 'check' }, [cb, labels[item.id]]);
+      var lab = h('label', { class: 'check' }, [cb, labels[item.id]]);
+      if (!item.materi) return lab;
+      return h('div', { class: 'check-row' }, [lab, h('a', { class: 'learn', href: '#/belajar/' + item.materi, text: 'Pelajari ›' })]);
     }
     function sync() {
       ['buy', 'sell'].forEach(function (k) {
@@ -266,16 +334,7 @@
         e.big.textContent = VS.fmtCountdown(nc - now);
         e.at.textContent = 'close ' + VS.hhmm(nc, 'Asia/Jakarta') + ' WIB';
       });
-      sesBox.innerHTML = '';
-      VS.sessions(now).forEach(function (s) {
-        sesBox.appendChild(h('div', { class: 'row' }, [
-          h('span', { class: 'tfname', text: s.name }),
-          h('span', { class: 'muted small', text: s.wib }),
-          h('span', { class: 'pill' + (s.state === 'aktif' ? ' on' : ''), text: VS.STATE_TEXT[s.state] })
-        ]));
-      });
-      var ov = VS.overlap(now);
-      if (ov) sesBox.appendChild(h('p', { class: 'small muted', text: 'Overlap London + New York: ' + ov }));
+      fillSessions(sesBox, now);
     }
     tick();
     var timer = setInterval(tick, 1000);

@@ -61,8 +61,52 @@ window.CONCEPTS = [
     syarat: 'Gerak setelahnya kuat dan body close menembus swing (BOS atau CHoCH). Zona belum ditembus body close berlawanan.',
     salah: 'Menandai OB padahal gerak setelahnya tidak menembus struktur (hanya wick). SL di dalam zona juga keliru; SL harus di luar sisi jauh zona.',
     pilih: true
+  },
+  {
+    id: 'liquidity', group: 'Lanjut', title: 'Liquidity sweep', examples: 'liquidity',
+    apa: 'Liquidity adalah area tempat banyak order menumpuk, biasanya di atas equal high (EQH) atau di bawah equal low (EQL). Sweep terjadi saat harga mengambil order itu lalu berbalik.',
+    cara: 'Tandai dua high atau low yang sejajar, lalu tunggu satu candle yang wick-nya melewati level itu. Kalau candle tersebut close kembali ke dalam, itu sweep.',
+    syarat: 'Wick melewati level, lalu close kembali ke dalam (di bawah EQH atau di atas EQL). Sweep hanya konfirmasi; zona entry tetap FVG atau OB.',
+    salah: 'Menyebut sweep padahal body close menembus level dan bertahan; itu BOS. Entry langsung di wick tanpa FVG atau OB juga keliru.'
+  },
+  {
+    id: 'premdisc', group: 'Lanjut', title: 'Premium & Discount', examples: 'premdisc',
+    apa: 'Premium/discount membagi sebuah range di titik 50%. Di atas 50% disebut premium (relatif mahal), di bawah 50% disebut discount (relatif murah).',
+    cara: 'Tarik garis dari swing low ke swing high terakhir, lalu tandai titik tengahnya (50%). Buy dicari di discount, sell dicari di premium, tetap di FVG atau OB.',
+    syarat: 'Range jelas (swing low dan swing high sudah terkonfirmasi) dan zona entry seluruhnya di sisi yang benar: di bawah 50% untuk buy, di atas 50% untuk sell.',
+    salah: 'Buy di premium atau sell di discount karena harga terlihat bergerak cepat. Menarik range dari swing yang belum terkonfirmasi juga membuat 50% salah.'
+  },
+  {
+    id: 'smt', group: 'Lanjut', title: 'SMT divergence', examples: 'smt',
+    apa: 'SMT terjadi saat dua aset yang biasanya searah tidak kompak: satu membuat high/low baru, yang lain gagal. Pasangannya, misalnya XAUUSD–XAGUSD atau US30–NAS100–SPX500.',
+    cara: 'Bandingkan dua chart di TF yang sama pada swing yang sejajar waktunya. Bearish: satu aset HH, yang lain LH. Bullish: satu aset LL, yang lain HL.',
+    syarat: 'Aset berkorelasi, swing dibandingkan di waktu yang sama, dan ada aset yang benar-benar gagal membuat high/low baru. SMT hanya konfirmasi tambahan; entry tetap di FVG atau OB.',
+    salah: 'Menyebut SMT padahal kedua aset sama-sama membuat high/low baru. Memakai SMT sebagai sinyal tunggal juga keliru.'
+  },
+  {
+    id: 'sesi', group: 'Lanjut', title: 'Sesi: Asia, London, New York', page: 'sesi',
+    apa: 'Harga emas dan indeks punya ritme berbeda di tiap sesi: Asia, London, New York. Likuiditas biasanya naik saat London dan New York buka.',
+    cara: 'Lihat jam sesi dalam WIB di halaman ini (dihitung otomatis, ikut berubah saat DST). Overlap London dan New York biasanya paling ramai, Asia lebih tenang.',
+    syarat: 'Sesi hanya bonus, bukan syarat wajib setup. Pilih entry di jam sesi aktif (London atau New York) dan hindari 1–2 menit sebelum rilis berita besar.',
+    salah: 'Menghafal jam WIB sebagai angka tetap padahal bergeser saat DST. Menganggap semua candle di sesi aktif otomatis valid juga keliru.'
   }
 ];
+
+/* Halaman sesi (js/app.js viewSesi). Jam WIB dihitung VySetup.sessions (Intl), bukan ditulis di sini. */
+window.SESI = {
+  intro: 'Jam di bawah dihitung otomatis dari zona waktu tiap kota, jadi ikut bergeser saat DST.',
+  info: {
+    asia: 'Biasanya tenang dan bergerak di range sempit. High dan low-nya sering jadi target liquidity yang disapu saat London buka.',
+    london: 'Likuiditas naik tajam saat buka. Sering ada sweep high atau low sesi Asia, lalu arah hari itu mulai terlihat.',
+    newyork: 'Volatilitas tinggi saat buka, apalagi saat data ekonomi AS rilis. Biasanya mereda setelah London tutup.'
+  },
+  overlap: 'Overlap London + New York biasanya jam paling ramai: likuiditas tebal dan gerakan sering lebih bersih. Cocok untuk menunggu setup yang sudah valid.',
+  tips: [
+    'Sesi aktif hanya bonus di checklist, bukan pengganti syarat wajib.',
+    'Hindari 1–2 menit sebelum rilis berita besar.',
+    'Akhir pekan pasar tutup, jadi sesi ditandai "Akhir pekan".'
+  ]
+};
 
 /* Bagian "FVG atau OB, pilih yang mana?" (tampil di kartu yang bertanda pilih: true). */
 window.PILIH = {

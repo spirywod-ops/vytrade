@@ -11,6 +11,9 @@
 <script src="../data/examples/fvg.js"></script>
 <script src="../data/examples/ifvg.js"></script>
 <script src="../data/examples/ob.js"></script>
+<script src="../data/examples/liquidity.js"></script>
+<script src="../data/examples/premdisc.js"></script>
+<script src="../data/examples/smt.js"></script>
 <script src="../data/topdown.js"></script>
 <script src="../data/setup.js"></script>
 <script src="../data/quiz.js"></script>
@@ -564,7 +567,8 @@
   /* ===== Materi: tiap konsep punya contoh dan 4 bagian kartu ===== */
   window.CONCEPTS.forEach(function (c) {
     check(!!(c.apa && c.cara && c.syarat && c.salah), 'konsep ' + c.id + ': kartu lengkap (Apa itu / Cara melihat / Syarat valid / Kesalahan umum)');
-    check(Array.isArray(window.EXAMPLES[c.examples]) && window.EXAMPLES[c.examples].length > 0, 'konsep ' + c.id + ': punya contoh chart (' + c.examples + ')');
+    if (c.page) check(typeof c.page === 'string', 'konsep ' + c.id + ': halaman khusus (' + c.page + '), bukan chart');
+    else check(Array.isArray(window.EXAMPLES[c.examples]) && window.EXAMPLES[c.examples].length > 0, 'konsep ' + c.id + ': punya contoh chart (' + c.examples + ')');
   });
   ['bos', 'choch'].forEach(function (k) {
     var v = window.EXAMPLES[k];
@@ -592,7 +596,7 @@
     check(['mc', 'tf', 'zone'].every(function (t) { return Q.some(function (q) { return q.type === t; }); }), 'kuis: ada tipe pilihan ganda, benar/salah, dan tebak zona');
 
     function sentences(t) { return (t.match(/[.!?](\s|$)/g) || []).length; }
-    var CONFIRM = /^(bos|choch|bos-vs-choch|fvg|ifvg|ob|candlestick)$/;
+    var CONFIRM = /^(bos|choch|bos-vs-choch|fvg|ifvg|ob|candlestick|liquidity)$/;
     Q.forEach(function (q) {
       var p = 'soal ' + q.id + ': ';
       check(catIds.indexOf(q.cat) >= 0, p + 'kategori ada (' + q.cat + ')');
@@ -669,6 +673,276 @@
       }
       return true;
     }), 'kuis: acak opsi tetap menyisakan satu jawaban benar sesuai kunci');
+  })();
+
+
+  /* ===== Lanjut (Tahap 7): liquidity sweep, premium/discount, SMT, sesi ===== */
+  var EQ_TOL = 0.6; // dua swing dianggap "equal" kalau selisih harga <= 0.6 (skala XAUUSD)
+
+  // EQH/EQL: dua swing sejenis yang berurutan dan sejajar. Hasil: [{side:'high'|'low', i1, i2, level}]
+  // level = batas terluar kedua swing (EQH: yang tertinggi, EQL: yang terendah).
+  function detectEqual(cs) {
+    var sw = detectSwings(cs), out = [];
+    ['H', 'L'].forEach(function (t) {
+      var arr = sw.filter(function (x) { return x.type === t; });
+      for (var k = 1; k < arr.length; k++) {
+        if (Math.abs(arr[k].price - arr[k - 1].price) > EQ_TOL) continue;
+        var pa = arr[k - 1].price, pb = arr[k].price;
+        out.push({ side: t === 'H' ? 'high' : 'low', i1: arr[k - 1].i, i2: arr[k].i, level: t === 'H' ? Math.max(pa, pb) : Math.min(pa, pb) });
+      }
+    });
+    return out;
+  }
+
+  // Sweep: candle PERTAMA setelah EQH/EQL yang wick-nya melewati level.
+  //  - close kembali ke dalam  -> kind 'sweep'
+  //  - close melewati level    -> kind 'break' (bukan sweep); held = 3 candle berikutnya tetap close di luar level
+  // Hasil: [{side, i1, i2, j, level, kind, held}]
+  function detectSweeps(cs) {
+    var out = [];
+    detectEqual(cs).forEach(function (e) {
+      var low = e.side === 'low';
+      for (var j = e.i2 + 1; j < cs.length; j++) {
+        var c = cs[j];
+        if (!(low ? c.l < e.level : c.h > e.level)) continue;
+        var closeBeyond = low ? c.c < e.level : c.c > e.level;
+        var held = closeBeyond;
+        for (var q = j + 1; q <= Math.min(j + 3, cs.length - 1); q++) if (!(low ? cs[q].c < e.level : cs[q].c > e.level)) held = false;
+        out.push({ side: e.side, i1: e.i1, i2: e.i2, j: j, level: e.level, kind: closeBeyond ? 'break' : 'sweep', held: held });
+        break;
+      }
+    });
+    return out;
+  }
+
+  // SMT: bandingkan swing sejenis yang berurutan di aset A dan B (swing B boleh geser 1 candle).
+  // Divergensi = satu aset membuat high/low baru, aset lain GAGAL. Hasil: [{dir, ia, ib, leader:'A'|'B'}]
+  function detectSMT(A, B) {
+    var sa = detectSwings(A), sb = detectSwings(B), out = [];
+    function nearSwing(arr, i) { return arr.filter(function (x) { return Math.abs(x.i - i) <= 1; })[0]; }
+    ['H', 'L'].forEach(function (t) {
+      var a = sa.filter(function (x) { return x.type === t; }), b = sb.filter(function (x) { return x.type === t; });
+      for (var k = 1; k < a.length; k++) {
+        var p0 = a[k - 1], p1 = a[k], q0 = nearSwing(b, p0.i), q1 = nearSwing(b, p1.i);
+        if (!q0 || !q1) continue;
+        var aNew = t === 'H' ? p1.price > p0.price : p1.price < p0.price;
+        var bNew = t === 'H' ? q1.price > q0.price : q1.price < q0.price;
+        if (aNew !== bNew) out.push({ dir: t === 'H' ? 'bear' : 'bull', ia: p0.i, ib: p1.i, leader: aNew ? 'A' : 'B' });
+      }
+    });
+    return out;
+  }
+
+  // Posisi tanpa zona (contoh salah): sentuh entry, RR 1:2, sisi SL/TP benar, hasil sesuai harapan.
+  function checkTrade(ex, pos) {
+    var cs = ex.candles, long = pos.side === 'long';
+    check(cs[pos.i].l <= pos.entry && cs[pos.i].h >= pos.entry, ex.id + ': harga menyentuh entry di candle ke-' + pos.i);
+    check(near(Math.abs(pos.tp - pos.entry) / Math.abs(pos.entry - pos.sl), 2), ex.id + ': RR 1:2');
+    check(long ? (pos.sl < pos.entry && pos.tp > pos.entry) : (pos.sl > pos.entry && pos.tp < pos.entry), ex.id + ': SL/TP di sisi yang benar untuk ' + pos.side);
+    var res = outcome(cs, pos);
+    check(res === (ex.valid ? 'TP' : 'SL'), ex.id + ': hasil posisi = ' + res + ' (harapan: ' + (ex.valid ? 'TP' : 'SL') + ')');
+  }
+  // Kelengkapan tampilan tiap contoh: label TF + simbol, entry (panah), posisi LP/SP, ada overlay yang bisa dinyalakan.
+  function checkLabels(ex) {
+    var pos = posOf(ex);
+    check(!!ex.symbol && ex.tf === 'M15', ex.id + ': label ' + ex.symbol + ' · ' + ex.tf);
+    check(!!pos && (pos.side === 'long' || pos.side === 'short'), ex.id + ': ada kotak posisi ' + (pos && pos.side === 'long' ? 'LP' : 'SP'));
+    check(ex.overlays.some(function (o) { return o.type === 'arrow' && o.label === 'Entry'; }), ex.id + ': ada panah Entry');
+    check(typeof ex.note === 'string' && ex.note.length > 20 && !/undefined|NaN/.test(ex.note), ex.id + ': catatan terisi tanpa token tersisa');
+  }
+  function fvgZoneOf(ex) { return ex.overlays.filter(function (o) { return o.type === 'zone' && o.kind === 'FVG'; })[0]; }
+
+  /* --- Liquidity sweep --- */
+  window.EXAMPLES.liquidity.forEach(function (ex) {
+    var cs = ex.candles, M = ex.meta, low = M.side === 'low', pos = posOf(ex);
+    check(candlesOk(ex), ex.id + ': semua candle OHLC konsisten');
+    checkLabels(ex);
+    var eq = detectEqual(cs).filter(function (e) { return e.side === M.side && e.i1 === M.i1 && e.i2 === M.i2; })[0];
+    check(!!eq, ex.id + ': deteksi menemukan ' + (low ? 'EQL' : 'EQH') + ' dari swing ' + M.i1 + ' dan ' + M.i2);
+    if (!eq) return;
+    check(near(eq.level, M.level), ex.id + ': level ' + (low ? 'EQL' : 'EQH') + ' = ' + eq.level);
+    var ln = ex.overlays.filter(function (o) { return o.type === 'line' && (o.label === 'EQL' || o.label === 'EQH'); })[0];
+    check(!!ln && ln.label === (low ? 'EQL' : 'EQH') && near(ln.y, eq.level) && ln.i1 === M.i1, ex.id + ': garis + label ' + (low ? 'EQL' : 'EQH') + ' digambar di level swing sejajar');
+    var sw = detectSweeps(cs).filter(function (e) { return e.i1 === M.i1 && e.i2 === M.i2; })[0];
+    check(!!sw && sw.j === M.j, ex.id + ': candle ke-' + M.j + ' = candle pertama yang wick-nya melewati level');
+    if (!sw) return;
+    var c = cs[M.j];
+    if (ex.valid) {
+      check(sw.kind === 'sweep', ex.id + ': deteksi = SWEEP (wick lewat, close kembali ke dalam)');
+      check(low ? (c.l < eq.level && c.c >= eq.level) : (c.h > eq.level && c.c <= eq.level), ex.id + ': wick candle ' + M.j + ' melewati ' + eq.level + ' lalu close ' + c.c + ' kembali ke dalam');
+      check(low ? Math.min(c.o, c.c) >= eq.level : Math.max(c.o, c.c) <= eq.level, ex.id + ': body candle sweep tidak melewati level (hanya wick)');
+      var mk = ex.overlays.filter(function (o) { return o.type === 'mark'; })[0];
+      check(!!mk && mk.i === M.j && near(mk.y, low ? c.l : c.h) && mk.label === 'Sweep', ex.id + ': tanda Sweep digambar di ujung wick candle ' + M.j);
+      // konfirmasi: CHoCH (body close) berlawanan arah sweep, SETELAH sweep
+      var chl = ex.overlays.filter(function (o) { return o.type === 'line' && o.label === 'CHoCH'; })[0];
+      var ev = detectBreaks(cs).filter(function (e) { return chl && e.j === chl.i2 && e.kind === 'CHoCH'; })[0];
+      check(!!ev && ev.dir === (low ? 'up' : 'down') && near(ev.level, chl.y) && ev.levelIdx === chl.i1 && ev.j > M.j, ex.id + ': CHoCH body close di candle ' + (chl && chl.i2) + ' setelah sweep, searah entry');
+      var z = fvgZoneOf(ex), d = VyChart.detectFVG(cs).filter(function (f) { return z && f.i1 === z.i1; })[0];
+      check(!!d && near(d.top, z.top) && near(d.bottom, z.bottom) && (d.dir === 'bull') === low && !d.breached, ex.id + ': FVG ' + (low ? 'bullish' : 'bearish') + ' cocok dengan deteksi dan belum tertembus');
+      check(!!z && !!ev && z.i1 >= M.j && pos.i > ev.j, ex.id + ': FVG terbentuk setelah sweep dan entry setelah CHoCH');
+      check((pos.side === 'long') === low, ex.id + ': arah posisi ' + pos.side + ' berlawanan dengan arah sapuan');
+      checkPos(ex, z, pos);
+    } else {
+      check(sw.kind === 'break' && sw.held, ex.id + ': deteksi = BUKAN sweep: body close melewati level dan bertahan 3 candle');
+      check(low ? c.c < eq.level : c.c > eq.level, ex.id + ': candle ' + M.j + ' body close ' + c.c + ' melewati level');
+      check(!detectSweeps(cs).some(function (e) { return e.kind === 'sweep'; }), ex.id + ': deteksi tidak menemukan sweep sama sekali');
+      var br = detectBreaks(cs).filter(function (e) { return e.j === M.j; })[0];
+      check(!!br && br.kind === 'BOS' && br.dir === (low ? 'down' : 'up'), ex.id + ': struktur: body close di candle ' + M.j + ' = BOS (deteksi: ' + (br ? br.kind : 'tidak ada') + ')');
+      var tx = ex.overlays.filter(function (o) { return o.type === 'text' && /BOS/.test(o.text); })[0];
+      check(!!tx && tx.i === M.j, ex.id + ': label BOS di candle ' + M.j);
+      check(near(pos.entry, eq.level), ex.id + ': entry salah di level ' + eq.level + ' (anggap sweep)');
+      checkTrade(ex, pos);
+    }
+  });
+  (function () {
+    var v = window.EXAMPLES.liquidity;
+    check(v.filter(function (e) { return e.valid && e.meta.side === 'low'; }).length >= 1 && v.filter(function (e) { return e.valid && e.meta.side === 'high'; }).length >= 1, 'liquidity: ada sweep di bawah EQL (naik) dan di atas EQH (turun)');
+    check(v.some(function (e) { return e.valid === false; }), 'liquidity: ada contoh BELUM VALID');
+    // fungsi deteksi (kasus kecil): wick lewat + close kembali = sweep; body close lewat dan bertahan = break
+    var b0 = [[10, 12, 9, 11], [11, 13, 10, 12], [12, 14, 11, 13], [13, 20, 12, 18]];
+    function mk(rows) { return rows.map(function (r) { return { o: r[0], h: r[1], l: r[2], c: r[3] }; }); }
+    var eh = mk([[10, 11, 9, 10], [10, 12, 9.5, 11], [11, 16, 10.5, 12], [12, 12, 8, 9], [9, 11, 8.5, 10.5], [10.5, 12, 9.8, 11], [11, 15.9, 10.5, 12], [12, 12.5, 9, 10], [10, 11, 9, 9.5], [9.5, 10, 9, 9.2]]);
+    var s1 = detectSweeps(eh.concat(mk([[9.2, 16.5, 9, 15.5], [15.5, 15.8, 14, 14.5]])));  // wick 16.5 > 16, close 15.5 < 16 -> sweep
+    var s2 = detectSweeps(eh.concat(mk([[9.2, 18, 9, 17.5], [17.5, 18.5, 17, 18], [18, 19, 17.2, 18.5], [18.5, 19, 17.5, 18.8]]))); // body close 17.5 > 16 dan bertahan -> break
+    check(detectEqual(eh).some(function (e) { return e.side === 'high' && Math.abs(e.level - 16) < 1e-9; }), 'deteksi EQH: dua high 16 dan 15.9 sejajar (selisih 0.1) terdeteksi, level = 16');
+    check(s1.length === 1 && s1[0].kind === 'sweep', 'deteksi sweep: wick melewati EQH lalu close kembali di bawah = sweep');
+    check(s2.length === 1 && s2[0].kind === 'break' && s2[0].held, 'deteksi sweep: body close di atas EQH dan bertahan = bukan sweep (break)');
+    check(detectEqual(mk([[10, 11, 9, 10], [10, 12, 9.5, 11], [11, 16, 10.5, 12], [12, 12, 8, 9], [9, 11, 8.5, 10.5], [10.5, 12, 9.8, 11], [11, 13, 10.5, 12], [12, 12.5, 9, 10], [10, 11, 9, 9.5], [9.5, 10, 9, 9.2]])).filter(function (e) { return e.side === 'high'; }).length === 0, 'deteksi EQH: dua high 16 dan 13 TIDAK sejajar');
+  })();
+
+  /* --- Premium / Discount --- */
+  window.EXAMPLES.premdisc.forEach(function (ex) {
+    var cs = ex.candles, M = ex.meta, pos = posOf(ex), z = fvgZoneOf(ex), long = pos.side === 'long';
+    check(candlesOk(ex), ex.id + ': semua candle OHLC konsisten');
+    checkLabels(ex);
+    var sw = detectSwings(cs);
+    var sL = sw.filter(function (x) { return x.type === 'L' && x.i === M.lowIdx; })[0], sH = sw.filter(function (x) { return x.type === 'H' && x.i === M.highIdx; })[0];
+    check(!!sL && !!sH, ex.id + ': swing low (candle ' + M.lowIdx + ') dan swing high (candle ' + M.highIdx + ') terdeteksi');
+    if (!sL || !sH) return;
+    var mid = (sL.price + sH.price) / 2, a = Math.min(M.lowIdx, M.highIdx), b = Math.max(M.lowIdx, M.highIdx);
+    var inside = true;
+    for (var k = a; k <= b; k++) if (cs[k].h > sH.price || cs[k].l < sL.price) inside = false;
+    check(inside, ex.id + ': swing low/high adalah batas terluar range (' + sL.price + '–' + sH.price + ')');
+    check(b + K < pos.i, ex.id + ': kedua swing sudah terkonfirmasi sebelum entry');
+    var pr = ex.overlays.filter(function (o) { return o.kind === 'PREM'; })[0], di = ex.overlays.filter(function (o) { return o.kind === 'DISC'; })[0];
+    var l50 = ex.overlays.filter(function (o) { return o.type === 'line' && o.label === '50%'; })[0];
+    check(!!pr && !!di && !!l50, ex.id + ': ada zona Premium, zona Discount, dan garis 50%');
+    check(near(pr.top, sH.price) && near(pr.bottom, mid) && near(di.top, mid) && near(di.bottom, sL.price) && near(l50.y, mid), ex.id + ': premium ' + mid + '–' + sH.price + ', discount ' + sL.price + '–' + mid + ', garis 50% = ' + mid);
+    check(pr.label === 'Premium' && di.label === 'Discount', ex.id + ': label Premium dan Discount');
+    var d = VyChart.detectFVG(cs).filter(function (f) { return f.i1 === z.i1; })[0];
+    check(!!d && near(d.top, z.top) && near(d.bottom, z.bottom) && (d.dir === 'bull') === long, ex.id + ': FVG ' + (long ? 'bullish' : 'bearish') + ' cocok dengan deteksi (' + (d && d.bottom) + '–' + (d && d.top) + ')');
+    var zoneDisc = z.top <= mid, zonePrem = z.bottom >= mid;
+    check(zoneDisc || zonePrem, ex.id + ': zona entry seluruhnya di satu sisi garis 50% (tidak memotong)');
+    check(long ? pos.entry < mid === zoneDisc : pos.entry > mid === zonePrem, ex.id + ': entry ' + pos.entry + ' ' + (pos.entry < mid ? 'di bawah' : 'di atas') + ' 50% (' + mid + ')');
+    if (ex.valid) {
+      check(long ? zoneDisc : zonePrem, ex.id + ': ' + (long ? 'BUY di DISCOUNT (zona di bawah 50%)' : 'SELL di PREMIUM (zona di atas 50%)'));
+      check(long ? pos.entry < mid : pos.entry > mid, ex.id + ': entry di sisi yang benar dari 50%');
+    } else {
+      check(long ? zonePrem : zoneDisc, ex.id + ': BELUM VALID = ' + (long ? 'buy di premium' : 'sell di discount'));
+    }
+    checkPos(ex, z, pos);
+  });
+  (function () {
+    var v = window.EXAMPLES.premdisc;
+    check(v.some(function (e) { return e.valid && posOf(e).side === 'long'; }) && v.some(function (e) { return e.valid && posOf(e).side === 'short'; }), 'premdisc: ada buy di discount dan sell di premium');
+    check(v.some(function (e) { return e.valid === false && posOf(e).side === 'long'; }), 'premdisc: ada contoh BELUM VALID (buy di premium)');
+    check(v[1].candles.every(function (c, k) { return near(c.o, 5300 - v[0].candles[k].o) && near(c.c, 5300 - v[0].candles[k].c); }), 'premdisc: sell = cermin buy');
+  })();
+
+  /* --- SMT divergence --- */
+  window.EXAMPLES.smt.forEach(function (ex) {
+    var A = ex.candles, B = ex.pair && ex.pair.candles, M = ex.meta, pos = posOf(ex);
+    check(!!B && candlesOk(ex) && candlesOk({ candles: B }), ex.id + ': dua chart ada dan semua candle OHLC konsisten');
+    if (!B) return;
+    checkLabels(ex);
+    check(A.length === B.length && ex.pair.tf === ex.tf && ex.symbol !== ex.pair.symbol, ex.id + ': dua aset berbeda (' + ex.symbol + ' vs ' + ex.pair.symbol + '), TF sama, jumlah candle sejajar (' + A.length + ')');
+    var found = detectSMT(A, B), bear = M.dir === 'bear', key = bear ? 'h' : 'l';
+    var segA = ex.overlays.filter(function (o) { return o.type === 'seg'; })[0], segB = ex.pair.overlays.filter(function (o) { return o.type === 'seg'; })[0];
+    var mA = ex.overlays.filter(function (o) { return o.type === 'mark'; }), mB = ex.pair.overlays.filter(function (o) { return o.type === 'mark'; });
+    check(!!segA && !!segB && mA.length === 2 && mB.length === 2, ex.id + ': titik divergensi ditandai di KEDUA chart (garis + 2 lingkaran)');
+    if (!segA || !segB) return;
+    check(segA.i1 === M.ia && segA.i2 === M.ib && segB.i1 === M.ia && segB.i2 === M.ib && mA[0].i === M.ia && mA[1].i === M.ib && mB[0].i === M.ia && mB[1].i === M.ib, ex.id + ': penanda di candle ' + M.ia + ' dan ' + M.ib + ' pada kedua chart');
+    check(near(segA.y1, A[M.ia][key]) && near(segA.y2, A[M.ib][key]) && near(segB.y1, B[M.ia][key]) && near(segB.y2, B[M.ib][key]), ex.id + ': ujung garis divergensi = ' + (bear ? 'high' : 'low') + ' swing di kedua chart');
+    if (ex.valid) {
+      var dv = found.filter(function (x) { return x.ia === M.ia && x.ib === M.ib; })[0];
+      check(found.length === 1 && !!dv && dv.dir === M.dir && dv.leader === 'A', ex.id + ': deteksi: tepat satu divergensi ' + M.dir + ', aset utama membuat ' + (bear ? 'high' : 'low') + ' baru');
+      check(bear ? (A[M.ib].h > A[M.ia].h && B[M.ib].h < B[M.ia].h) : (A[M.ib].l < A[M.ia].l && B[M.ib].l > B[M.ia].l), ex.id + ': ' + ex.symbol + ' ' + (bear ? 'HH' : 'LL') + ', ' + ex.pair.symbol + ' ' + (bear ? 'LH' : 'HL') + ' (gagal membuat baru)');
+      check(segA.label === (bear ? 'HH' : 'LL') && segB.label === (bear ? 'LH' : 'HL'), ex.id + ': label divergensi ' + segA.label + ' / ' + segB.label);
+      // aset yang gagal: swing sebelumnya tidak ditembus body close sampai candle ib
+      var failed = false;
+      for (var k = M.ia + 1; k <= M.ib; k++) if (bear ? B[k].c > B[M.ia].h : B[k].c < B[M.ia].l) failed = true;
+      check(!failed, ex.id + ': ' + ex.pair.symbol + ' tidak pernah menembus swing sebelumnya (body close) sampai candle ' + M.ib);
+      // konfirmasi struktur di aset utama: CHoCH setelah divergensi
+      var chl = ex.overlays.filter(function (o) { return o.type === 'line' && o.label === 'CHoCH'; })[0];
+      var ev = detectBreaks(A).filter(function (e) { return chl && e.j === chl.i2 && e.kind === 'CHoCH'; })[0];
+      check(!!ev && ev.dir === (bear ? 'down' : 'up') && near(ev.level, chl.y) && ev.levelIdx === chl.i1 && ev.j > M.ib, ex.id + ': CHoCH body close di candle ' + (chl && chl.i2) + ' setelah divergensi');
+      // entry di FVG/OB aset utama (SMT bukan zona entry)
+      var z = ex.overlays.filter(function (o) { return o.type === 'zone'; })[0];
+      check(!!z && !!ev && z.kind === M.zone && z.label === M.zone && pos.i > ev.j, ex.id + ': entry di ' + M.zone + ' setelah CHoCH (SMT hanya konfirmasi)');
+      if (M.zone === 'FVG') {
+        var d = VyChart.detectFVG(A).filter(function (f) { return f.i1 === z.i1; })[0];
+        check(!!d && near(d.top, z.top) && near(d.bottom, z.bottom) && (d.dir === 'bull') === !bear && !d.breached, ex.id + ': zona = FVG hasil deteksi, belum tertembus');
+      } else {
+        var o = detectOB(A).filter(function (x) { return x.i === z.i1; })[0];
+        check(!!o && near(o.top, z.top) && near(o.bottom, z.bottom) && o.dir === (bear ? 'bear' : 'bull'), ex.id + ': zona = OB hasil deteksi (high–low candle ' + z.i1 + ')');
+      }
+      check((pos.side === 'long') === !bear, ex.id + ': arah posisi sesuai SMT');
+      checkPos(ex, z, pos);
+    } else {
+      check(found.length === 0, ex.id + ': deteksi TIDAK menemukan divergensi');
+      check(A[M.ib].l < A[M.ia].l && B[M.ib].l < B[M.ia].l, ex.id + ': kedua aset sama-sama membuat low baru (' + A[M.ib].l + ' dan ' + B[M.ib].l + ')');
+      check(segA.label === 'LL' && segB.label === 'LL', ex.id + ': label LL di kedua chart');
+      checkTrade(ex, pos);
+    }
+  });
+  (function () {
+    var v = window.EXAMPLES.smt;
+    check(v.filter(function (e) { return e.valid && e.meta.dir === 'bull'; }).length >= 1 && v.filter(function (e) { return e.valid && e.meta.dir === 'bear'; }).length >= 2, 'smt: ada contoh valid bullish dan bearish (bearish: emas dan indeks)');
+    check(v.some(function (e) { return e.valid === false; }), 'smt: ada contoh BELUM VALID');
+    check(v.some(function (e) { return e.symbol === 'XAUUSD' && e.pair.symbol === 'XAGUSD'; }) && v.some(function (e) { return e.symbol === 'US30' && e.pair.symbol === 'NAS100'; }), 'smt: pasangan XAUUSD vs XAGUSD dan US30 vs NAS100 ada');
+    // fungsi deteksi (kasus kecil)
+    function mk(rows) { return rows.map(function (r) { return { o: r[0], h: r[1], l: r[2], c: r[3] }; }); }
+    var base = [[10, 11, 9, 10], [10, 12, 9.5, 11], [11, 14, 10.5, 12], [12, 12.5, 9, 10], [10, 11, 8.5, 10.5], [10.5, 12, 9.8, 11], [11, 17, 10.5, 12], [12, 12.5, 9, 10], [10, 11, 9, 9.5], [9.5, 10, 9, 9.2]];
+    var A = mk(base);
+    var Bfail = mk(base.map(function (r, i) { return i === 6 ? [11, 13, 10.5, 12] : r; }));   // swing high ke-2 lebih RENDAH (gagal HH)
+    var Bsame = mk(base.map(function (r, i) { return i === 6 ? [11, 18, 10.5, 12] : r; }));   // swing high ke-2 juga lebih tinggi (kompak)
+    check(detectSMT(A, Bfail).some(function (x) { return x.dir === 'bear' && x.leader === 'A'; }), 'deteksi SMT: A membuat HH, B LH = divergensi bearish');
+    check(detectSMT(A, Bsame).length === 0, 'deteksi SMT: kedua aset sama-sama HH = bukan divergensi');
+  })();
+
+  /* --- Sesi (Asia, London, New York): jam WIB dihitung Intl, bukan hardcode --- */
+  (function () {
+    var VS = window.VySetup, T = Date.UTC;
+    function ses(y, m, d, hh) { var o = {}; VS.sessions(T(y, m - 1, d, hh, 0, 0)).forEach(function (s) { o[s.id] = s; }); return o; }
+    check(VS.sessions(T(2026, 0, 15, 10, 0, 0)).map(function (s) { return s.id; }).join() === 'asia,london,newyork', 'sesi: urutan Asia, London, New York');
+    check(ses(2026, 1, 15, 3).asia.wib === '07:00–16:00 WIB' && ses(2026, 7, 15, 3).asia.wib === '07:00–16:00 WIB', 'sesi: Asia (Tokyo) 07:00–16:00 WIB sepanjang tahun (Jepang tanpa DST)');
+    check(ses(2026, 1, 15, 3).asia.state === 'aktif' && ses(2026, 1, 15, 10).asia.state === 'tutup', 'sesi: Asia aktif 03:00 UTC, tutup 10:00 UTC');
+    check(ses(2026, 1, 15, 10).london.wib === '15:00–00:00 WIB' && ses(2026, 7, 15, 10).london.wib === '14:00–23:00 WIB', 'sesi: London bergeser 15:00 (dingin) ke 14:00 WIB (panas) = ikut DST');
+    check(VS.wibMinutes(T(2026, 0, 15, 12, 0, 0)) === 19 * 60 && VS.wibMinutes(T(2026, 0, 15, 17, 30, 0)) === 30, 'garis waktu: 12:00 UTC = 19:00 WIB (1140 menit), 17:30 UTC = 00:30 WIB (30 menit)');
+    check(window.SESI && ['asia', 'london', 'newyork'].every(function (k) { return typeof window.SESI.info[k] === 'string' && window.SESI.info[k].length > 20; }) && window.SESI.overlap && window.SESI.tips.length >= 2, 'sesi: teks Asia, London, New York, overlap, dan tips ada di data');
+  })();
+
+  /* --- Kelengkapan Tahap 7: materi, flashcard, glosarium, kuis, tautan bonus --- */
+  (function () {
+    var L = ['liquidity', 'premdisc', 'smt', 'sesi'];
+    var grp = window.CONCEPTS.filter(function (c) { return c.group === 'Lanjut'; }).map(function (c) { return c.id; });
+    check(L.every(function (k) { return grp.indexOf(k) >= 0; }), 'materi: grup Lanjut berisi liquidity, premdisc, smt, sesi (' + grp.join(',') + ')');
+    L.forEach(function (k) {
+      var nQ = window.QUIZ.filter(function (q) { return q.tag === k; }).length;
+      check(nQ >= (k === 'sesi' ? 3 : 5), 'kuis: tag "' + k + '" punya ' + nQ + ' soal (minimal ' + (k === 'sesi' ? 3 : 5) + ')');
+      check(window.GLOSSARY.some(function (g) { return g.link === k; }), 'glosarium: ada istilah yang menaut ke kartu materi "' + k + '"');
+      check(window.FLASHCARDS.some(function (c) { return c.id === k; }), 'flashcard: kartu "' + k + '" ada');
+    });
+    check(window.QUIZ.some(function (q) { return q.type === 'zone' && q.cat === 'lanjut'; }), 'kuis: ada soal tebak zona di kategori Lanjut');
+    window.SETUP.bonus.forEach(function (b) {
+      check(!!b.materi && window.CONCEPTS.some(function (c) { return c.id === b.materi; }), 'checklist: bonus "' + b.id + '" punya tautan Pelajari ke kartu materi "' + b.materi + '"');
+    });
+    check(window.SETUP.bonus.map(function (b) { return b.materi; }).join() === 'liquidity,premdisc,smt,sesi', 'checklist: tautan bonus = liquidity, premdisc, smt, sesi');
+    ['liquidity', 'premdisc', 'smt'].forEach(function (k) {
+      var c = window.CONCEPTS.filter(function (x) { return x.id === k; })[0];
+      var n = window.EXAMPLES[c.examples];
+      check(n.filter(function (e) { return e.valid === true; }).length >= 2 && n.filter(function (e) { return e.valid === false; }).length >= 1, k + ': minimal 2 contoh valid + 1 contoh BELUM VALID');
+    });
   })();
 
   /* ===== Jurnal (Tahap 6) ===== */

@@ -16,9 +16,10 @@
   var q = new URLSearchParams(location.search);
   var routes = q.get('r') ? [q.get('r')] :
     ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob',
+     'belajar/liquidity', 'belajar/premdisc', 'belajar/smt', 'belajar/sesi',
      'belajar/topdown/bull/1d', 'belajar/topdown/bull/4h', 'belajar/topdown/bull/1h', 'belajar/topdown/bull/30m', 'belajar/topdown/bull/15m', 'belajar/topdown/bull/5m', 'belajar/topdown/bull/1m',
      'belajar/topdown/bear/1d', 'belajar/topdown/bear/4h', 'belajar/topdown/bear/1h', 'belajar/topdown/bear/30m', 'belajar/topdown/bear/15m', 'belajar/topdown/bear/5m', 'belajar/topdown/bear/1m',
-     'latihan', 'latihan/kuis', 'latihan/kuis/dasar', 'latihan/kuis/struktur', 'latihan/kuis/zona', 'latihan/kuis/topdown', 'latihan/kuis/checklist',
+     'latihan', 'latihan/kuis', 'latihan/kuis/dasar', 'latihan/kuis/struktur', 'latihan/kuis/zona', 'latihan/kuis/topdown', 'latihan/kuis/checklist', 'latihan/kuis/lanjut',
      'latihan/flashcard', 'latihan/glosarium', 'setup', 'jurnal'];
   var keepOn = q.get('ov') === '1';
   var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
@@ -27,6 +28,8 @@
     pRestore();
     lines.push(fail ? 'TOTAL GAGAL: ' + fail : 'SEMUA LOLOS');
     document.getElementById('out').textContent = lines.join('\n');
+    // ?report=1: kirim hasil ke localhost:8081 (untuk uji otomatis tanpa layar)
+    if (q.get('report')) { try { navigator.sendBeacon('http://localhost:8081/report', lines.join('\n')); } catch (e) { /* abaikan */ } }
   }
 
   /* ===== Tab Latihan (Tahap 5) ===== */
@@ -54,7 +57,7 @@
     if (r === 'latihan') {
       var menu = V.querySelectorAll('a.card.link');
       check(menu.length === 3 && /Kuis/.test(menu[0].textContent) && /Flashcard/.test(menu[1].textContent) && /Glosarium/.test(menu[2].textContent), 'latihan: tiga menu (Kuis, Flashcard, Glosarium)');
-      check(V.querySelectorAll('#progres .row').length === cats.length + 1 && /Belum dicoba/.test(V.textContent) && /0\/\d+ hafal/.test(V.textContent), 'latihan: ringkasan progres (5 kategori + flashcard) di atas menu');
+      check(V.querySelectorAll('#progres .row').length === cats.length + 1 && /Belum dicoba/.test(V.textContent) && /0\/\d+ hafal/.test(V.textContent), 'latihan: ringkasan progres (' + cats.length + ' kategori + flashcard) di atas menu');
     } else if (r === 'latihan/kuis') {
       var cl = V.querySelectorAll('a.card.link');
       check(cl.length === cats.length, 'kuis: ' + cl.length + ' kategori tampil');
@@ -218,30 +221,60 @@
       w.location.hash = '#/' + r;
       setTimeout(function () {
         var arts = d.querySelectorAll('article.ex'), svgs = d.querySelectorAll('svg.chart');
-        var isTop = /^belajar\/topdown/.test(r), isBelajarKonsep = /^belajar\/./.test(r) && !isTop;
+        var isTop = /^belajar\/topdown/.test(r), isSesi = r === 'belajar/sesi', isBelajarKonsep = /^belajar\/./.test(r) && !isTop && !isSesi;
         if (isBelajarKonsep) {
-          check(arts.length > 0 && svgs.length === arts.length, r + ': ' + svgs.length + ' chart tampil untuk ' + arts.length + ' contoh');
+          var key = r.split('/')[1], cons = w.CONCEPTS.filter(function (c) { return c.id === key; })[0], exs = w.EXAMPLES[cons.examples];
+          var wantSvgs = exs.reduce(function (n, e) { return n + (e.pair ? 2 : 1); }, 0);
+          check(arts.length === exs.length && svgs.length === wantSvgs, r + ': ' + svgs.length + ' chart tampil untuk ' + arts.length + ' contoh (harap ' + wantSvgs + ')');
           // tiap chart punya candle (body+wick), label TF, tulisan Ilustrasi
           check(Array.prototype.every.call(svgs, function (s) {
             return s.querySelectorAll('rect.body').length >= 8 && s.querySelectorAll('line.wick').length >= 8 &&
-                   /XAUUSD · M15/.test(s.textContent) && /Ilustrasi/.test(s.textContent);
-          }), r + ': candle (body+wick), label "XAUUSD · M15", dan "Ilustrasi" ada di semua chart');
+                   /[A-Z0-9]{5,8} · M15/.test(s.textContent) && /Ilustrasi/.test(s.textContent);
+          }), r + ': candle (body+wick), label "SIMBOL · M15", dan "Ilustrasi" ada di semua chart');
           // tombol zona: awalnya tersembunyi, menyala, lalu mati lagi
           var okBtn = true;
           Array.prototype.forEach.call(arts, function (a) {
-            var s = a.querySelector('svg.chart'), b = a.querySelector('button.btn');
-            var off0 = s.classList.contains('ov-off');
+            var ss = a.querySelectorAll('svg.chart'), s = ss[0], b = a.querySelector('button.btn');
+            function allOff(v) { return Array.prototype.every.call(ss, function (x) { return x.classList.contains('ov-off') === v; }); }
+            var off0 = allOff(true);
             b.click();
-            var on1 = !s.classList.contains('ov-off') && /Sembunyikan/.test(b.textContent);
+            var on1 = allOff(false) && /Sembunyikan/.test(b.textContent);
             var shown = s.querySelectorAll('g.ov text, g.ov rect, g.ov line').length;
             b.click();
-            var off2 = s.classList.contains('ov-off') && /Tampilkan/.test(b.textContent);
+            var off2 = allOff(true) && /Tampilkan/.test(b.textContent);
             if (!(off0 && on1 && off2 && shown > 0)) okBtn = false;
             if (keepOn) b.click();
           });
           check(okBtn, r + ': tombol zona: mati -> nyala -> mati, overlay ada isinya');
           if (r === 'belajar/ob' || r === 'belajar/fvg') check(/FVG atau OB, pilih yang mana\?/.test(d.getElementById('view').textContent), r + ': bagian "FVG atau OB, pilih yang mana?" tampil');
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN" di halaman');
+          // Tahap 7: isi khusus per konsep (label wajib di chart + kartu 4 bagian + tombol zona)
+          if (/^belajar\/(liquidity|premdisc|smt)$/.test(r)) {
+            var allTx = Array.prototype.map.call(svgs, function (x) { return x.textContent; }).join(' ');
+            var need = { liquidity: ['EQL', 'EQH', 'Sweep', 'BOS', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                         premdisc: ['Premium', 'Discount', '50%', 'FVG', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                         smt: ['SMT', 'HH', 'LH', 'LL', 'HL', 'FVG', 'OB', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15', 'XAGUSD · M15', 'US30 · M15', 'NAS100 · M15'] }[key];
+            var miss = need.filter(function (t) { return allTx.indexOf(t) < 0; });
+            check(miss.length === 0, r + ': label di chart lengkap' + (miss.length ? ' (kurang: ' + miss.join(', ') + ')' : ''));
+            var V7 = d.getElementById('view').textContent;
+            check(/Apa itu/.test(V7) && /Cara melihat/.test(V7) && /Syarat valid/.test(V7) && /Kesalahan umum/.test(V7), r + ': kartu materi 4 bagian');
+            check(arts.length >= 3 && d.querySelectorAll('.badge.ok').length >= 2 && d.querySelectorAll('.badge.bad').length >= 1, r + ': minimal 2 contoh VALID + 1 BELUM VALID (' + d.querySelectorAll('.badge.ok').length + ' valid, ' + d.querySelectorAll('.badge.bad').length + ' belum)');
+            if (key === 'smt') {
+              var twoEach = Array.prototype.every.call(arts, function (a, i) {
+                var q = a.querySelectorAll('svg.chart');
+                return q.length === 2 && q[0].textContent.indexOf(exs[i].symbol + ' · M15') >= 0 && q[1].textContent.indexOf(exs[i].pair.symbol + ' · M15') >= 0 && q[0].querySelectorAll('g.ov circle').length === 2 && q[1].querySelectorAll('g.ov circle').length === 2;
+              });
+              check(twoEach, r + ': tiap contoh = dua chart bersusun, titik divergensi (2 lingkaran) ditandai di KEDUA chart');
+            }
+            if (key === 'liquidity') check(Array.prototype.filter.call(svgs, function (x) { return x.querySelectorAll('g.ov circle').length === 1; }).length === 2, r + ': tanda sweep (lingkaran) di 2 contoh valid');
+          }
+        } else if (isSesi) {
+          var VS7 = d.getElementById('view'), rows7 = VS7.querySelectorAll('#sesi-box .row'), live = w.VySetup.sessions(Date.now());
+          check(rows7.length === 3 && live.every(function (x, i) { return rows7[i].textContent.indexOf(x.name) >= 0 && rows7[i].textContent.indexOf(x.wib) >= 0; }), r + ': 3 sesi (Asia, London, New York) dengan jam WIB hasil hitungan: ' + live.map(function (x) { return x.wib; }).join(' | '));
+          check(/Apa itu/.test(VS7.textContent) && /Cara melihat/.test(VS7.textContent) && /Syarat valid/.test(VS7.textContent) && /Kesalahan umum/.test(VS7.textContent), r + ': kartu materi 4 bagian');
+          check(VS7.querySelectorAll('.tl-row').length === 3 && Array.prototype.every.call(VS7.querySelectorAll('.tl-now'), function (n) { return /%$/.test(n.style.left); }) && VS7.querySelectorAll('.tl-seg').length >= 3, r + ': garis waktu 24 jam: 3 batang sesi + penanda sekarang');
+          check(/Overlap London \+ New York/.test(VS7.textContent) && /Kapan likuiditas/.test(VS7.textContent) && VS7.querySelectorAll('.ses-info').length === 3, r + ': penjelasan likuiditas + overlap + info tiap sesi');
+          check(!/undefined|NaN|Segera hadir/.test(VS7.innerHTML), r + ': tidak ada "undefined"/"NaN"/"Segera hadir"');
         } else if (isTop) {
           var tf = r.split('/')[3], sc = r.split('/')[2], T = w.TOPDOWN.scenarios[sc].steps;
           var sv = d.querySelectorAll('svg.chart'), btn = d.querySelector('button.btn'), tds = T.filter(function (x) { return x.id === tf; })[0];
@@ -277,7 +310,10 @@
           check(/premium/.test(V.textContent), 'setup: arah Sell -> bonus menyebut premium');
           var cd0 = V.querySelector('.cd').textContent;
           check(/^\d\d:\d\d$/.test(cd0) && V.querySelectorAll('.cd').length === 3, 'setup: 3 hitung mundur (M15/M5/M1), format mm:ss = ' + cd0);
-          check(/London/.test(V.textContent) && /New York/.test(V.textContent) && /WIB/.test(V.textContent), 'setup: sesi London + New York dalam WIB');
+          check(/London/.test(V.textContent) && /New York/.test(V.textContent) && /Asia/.test(V.textContent) && /WIB/.test(V.textContent), 'setup: sesi Asia + London + New York dalam WIB (komponen sesi dipakai ulang)');
+          var learn = V.querySelectorAll('.learn');
+          check(learn.length === 4 && ['liquidity', 'premdisc', 'smt', 'sesi'].every(function (k, i) { return new RegExp('#/belajar/' + k + '$').test(learn[i].getAttribute('href')) && /Pelajari/.test(learn[i].textContent) && !learn[i].closest('label'); }), 'setup: tiap bonus punya tautan "Pelajari" ke kartu materinya (liquidity, premdisc, smt, sesi)');
+          check(Array.prototype.every.call(learn, function (a) { var row = a.parentNode; return row.querySelector('input[type=checkbox]') && w.CONCEPTS.some(function (c) { return '#/belajar/' + c.id === a.getAttribute('href'); }); }), 'setup: tautan Pelajari menuju kartu yang ada, satu baris dengan checkbox bonusnya');
           d.getElementById('reset').click();
           check(/PILIH ARAH/.test(V.querySelector('.status').textContent) && Array.prototype.every.call(cbs, function (c) { return !c.checked; }), 'setup: Reset mengosongkan arah dan centang');
           // hitung mundur jalan tiap detik
@@ -292,6 +328,11 @@
             check(links.length >= 6, 'belajar: ' + links.length + ' kartu materi (Dasar + Struktur + FVG)');
             check(/FVG|IFVG|OB/.test(d.getElementById('view').textContent) && links.length >= 8, 'belajar: kartu IFVG dan OB ada (' + links.length + ' kartu)');
             check(/Edukasi, bukan saran keuangan/.test(d.getElementById('view').textContent), 'belajar: disclaimer tampil');
+            var hrefs = Array.prototype.map.call(links, function (a) { return a.getAttribute('href'); });
+            check(['liquidity', 'premdisc', 'smt', 'sesi'].every(function (k) { return hrefs.indexOf('#/belajar/' + k) >= 0; }), 'belajar: grup Lanjut berisi kartu Liquidity, Premium/Discount, SMT, Sesi');
+            var hs = Array.prototype.map.call(d.querySelectorAll('#view h2'), function (x) { return x.textContent; });
+            var lanjutRow = d.querySelector('#view h2:nth-of-type(' + (hs.indexOf('Lanjut') + 1) + ')');
+            check(hs.indexOf('Lanjut') >= 0 && lanjutRow.nextElementSibling && lanjutRow.nextElementSibling.tagName === 'A', 'belajar: grup Lanjut tidak lagi "Segera hadir"');
           }
         }
         function finish() {

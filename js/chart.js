@@ -5,14 +5,19 @@
    - line:     {type:'line', i1, i2, y, label, color, dash, pos:'above'|'below', labelAt:'start'}   (level BOS/CHoCH, dll)
    - arrow:    {type:'arrow', i, y, label}                    (panah entry, menunjuk ke kanan)
    - text:     {type:'text', i, y, dy, text, anchor}
+   - mark:     {type:'mark', i, y, label, color, pos:'above'|'below'}   (lingkaran penanda: titik sweep, titik divergensi SMT)
+   - seg:      {type:'seg', i1, y1, i2, y2, label, color, dash}         (garis miring antar dua titik, mis. HH di satu aset vs LH di aset lain)
+   zone: `labelPos:'above'` menaruh label di atas sisi atas zona (menghindari panah Entry).
+   Zona tambahan: kind 'PREM' (premium, merah) dan 'DISC' (discount, hijau); `opacity` opsional.
+   renderPair(container, spec): dua chart bersusun (spec.pair = {symbol, tf, candles, overlays}) untuk SMT; satu tombol zona untuk keduanya.
 */
 (function (global) {
   'use strict';
 
   var NS = 'http://www.w3.org/2000/svg';
-  var W = 360, H = 250;
+  var W = 360, H_DEF = 250;
   var PAD = { l: 6, r: 46, t: 26, b: 18 };
-  var COLORS = { FVG: '#2f7bf6', IFVG: '#9b5de5', OB: '#f59e0b', OFF: '#8a919c', TP: '#1f9d55', SL: '#e04848', LINE: '#8a919c' };
+  var COLORS = { FVG: '#2f7bf6', IFVG: '#9b5de5', OB: '#f59e0b', OFF: '#8a919c', TP: '#1f9d55', SL: '#e04848', LINE: '#8a919c', PREM: '#e04848', DISC: '#1f9d55', SWEEP: '#f97316', SMT: '#d946ef' };
 
   function el(tag, attrs, parent) {
     var n = document.createElementNS(NS, tag);
@@ -57,14 +62,14 @@
   }
 
   function render(container, spec) {
-    var cs = spec.candles, n = cs.length, ovs = spec.overlays || [];
+    var cs = spec.candles, n = cs.length, ovs = spec.overlays || [], H = spec.h || H_DEF;
     var plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
     var step = plotW / n, bw = Math.max(3, step * 0.58);
 
     var hi = -Infinity, lo = Infinity;
     cs.forEach(function (c) { hi = Math.max(hi, c.h); lo = Math.min(lo, c.l); });
     ovs.forEach(function (o) {
-      [o.top, o.bottom, o.y, o.entry, o.sl, o.tp].forEach(function (v) {
+      [o.top, o.bottom, o.y, o.y1, o.y2, o.entry, o.sl, o.tp].forEach(function (v) {
         if (typeof v === 'number') { hi = Math.max(hi, v); lo = Math.min(lo, v); }
       });
     });
@@ -98,10 +103,10 @@
       zoneRects.push({ kind: o.kind, x1: x1, x2: x2, y1: y(o.top), y2: y(o.bottom) });
       el('rect', {
         x: x1, y: y(o.top), width: x2 - x1, height: Math.max(1, y(o.bottom) - y(o.top)),
-        fill: col, 'fill-opacity': 0.2, stroke: col, 'stroke-width': 1, 'stroke-dasharray': '3 2'
+        fill: col, 'fill-opacity': typeof o.opacity === 'number' ? o.opacity : 0.2, stroke: col, 'stroke-width': 1, 'stroke-dasharray': '3 2'
       }, gz);
       var lx = typeof o.labelI === 'number' ? x(o.labelI) - step / 2 + 3 : x1 + 3;
-      var lt = el('text', { x: lx, y: y(o.top) + 10, 'class': 't-label', fill: col }, gz);
+      var lt = el('text', { x: lx, y: o.labelPos === 'above' ? y(o.top) - 3 : y(o.top) + 10, 'class': 't-label', fill: col }, gz);
       lt.textContent = o.label || o.kind;
     });
 
@@ -150,6 +155,20 @@
           tx = el('text', { x: ax - 26, y: ay - 4, 'class': 't-label' }, ga);
           tx.textContent = o.label;
         }
+      } else if (o.type === 'mark') {
+        var mc = o.color || COLORS.SWEEP;
+        el('circle', { cx: x(o.i), cy: y(o.y), r: 6.5, fill: 'none', stroke: mc, 'stroke-width': 2 }, ga);
+        if (o.label) {
+          tx = el('text', { x: x(o.i), y: y(o.y) + (o.pos === 'below' ? 19 : -10), 'text-anchor': o.anchor || 'middle', 'class': 't-label', fill: mc }, ga);
+          tx.textContent = o.label;
+        }
+      } else if (o.type === 'seg') {
+        var sc = o.color || COLORS.SMT;
+        el('line', { x1: x(o.i1), x2: x(o.i2), y1: y(o.y1), y2: y(o.y2), stroke: sc, 'stroke-width': 1.6, 'stroke-dasharray': o.dash === false ? '' : '4 3' }, ga);
+        if (o.label) {
+          tx = el('text', { x: x(o.i2), y: y(o.y2) + (o.pos === 'below' ? 21 : -11), 'text-anchor': o.anchor || 'middle', 'class': 't-label', fill: sc }, ga);
+          tx.textContent = o.label;
+        }
       } else if (o.type === 'text') {
         tx = el('text', { x: x(o.i), y: y(o.y) + (o.dy || 0), 'text-anchor': o.anchor || 'middle', 'class': 't-label' }, ga);
         tx.textContent = o.text;
@@ -190,5 +209,16 @@
     };
   }
 
-  global.VyChart = { render: render, detectFVG: detectFVG };
+  // Dua chart bersusun (aset utama di atas, aset korelasi di bawah). Candle sejajar per index supaya titik divergensi terlihat.
+  function renderPair(container, spec) {
+    var a = render(container, { title: spec.title, symbol: spec.symbol, tf: spec.tf, candles: spec.candles, overlays: spec.overlays, h: 215 });
+    var b = render(container, { title: spec.title, symbol: spec.pair.symbol, tf: spec.pair.tf || spec.tf, candles: spec.pair.candles, overlays: spec.pair.overlays, h: 215 });
+    return {
+      svg: a.svg, svgs: [a.svg, b.svg],
+      setOverlay: function (on) { a.setOverlay(on); b.setOverlay(on); },
+      isOverlayOn: function () { return a.isOverlayOn(); }
+    };
+  }
+
+  global.VyChart = { render: render, renderPair: renderPair, detectFVG: detectFVG };
 })(window);

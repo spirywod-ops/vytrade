@@ -1,5 +1,6 @@
 /* Isi checklist setup (tab Setup). Aturan di CLAUDE.md. `saran` = langkah berikutnya kalau syarat itu belum terpenuhi.
-   Teks yang bergantung arah memakai {buy: ..., sell: ...}. */
+   Teks yang bergantung arah memakai {buy: ..., sell: ...}.
+   Bonus punya `materi` = id kartu materi (data/concepts.js) untuk tautan "Pelajari". */
 window.SETUP = {
   required: [
     {
@@ -24,10 +25,10 @@ window.SETUP = {
     }
   ],
   bonus: [
-    { id: 'sweep', text: 'Ada sweep liquidity sebelum entry.' },
-    { id: 'zonaharga', text: { buy: 'Entry di area discount (di bawah 50% range).', sell: 'Entry di area premium (di atas 50% range).' } },
-    { id: 'smt', text: 'SMT mendukung (mis. XAUUSD vs XAGUSD).' },
-    { id: 'sesi', text: 'Jam sesi aktif (London atau New York).' }
+    { id: 'sweep', materi: 'liquidity', text: 'Ada sweep liquidity sebelum entry.' },
+    { id: 'zonaharga', materi: 'premdisc', text: { buy: 'Entry di area discount (di bawah 50% range).', sell: 'Entry di area premium (di atas 50% range).' } },
+    { id: 'smt', materi: 'smt', text: 'SMT mendukung (mis. XAUUSD vs XAGUSD).' },
+    { id: 'sesi', materi: 'sesi', text: 'Jam sesi aktif (London atau New York).' }
   ],
   aturanWaktu: [
     'Konfirmasi hanya dihitung SETELAH candle close di TF itu.',
