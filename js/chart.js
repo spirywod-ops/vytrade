@@ -1,6 +1,6 @@
 /* VyChart: render candlestick SVG dari data OHLC {o,h,l,c} + overlay.
    Overlay (array `overlays` di spec), koordinat pakai index candle (i) dan harga (y):
-   - zone:     {type:'zone', kind:'FVG'|'IFVG'|'OB'|'OFF', i1, i2, top, bottom, label}
+   - zone:     {type:'zone', kind:'FVG'|'IFVG'|'OB'|'OFF', i1, i2, top, bottom, label, labelI (opsional: index candle tempat label)}
    - position: {type:'position', side:'long'|'short', i, i2, entry, sl, tp}  (kotak TP hijau, SL merah, label LP/SP)
    - line:     {type:'line', i1, i2, y, label, color, dash, pos:'above'|'below', labelAt:'start'}   (level BOS/CHoCH, dll)
    - arrow:    {type:'arrow', i, y, label}                    (panah entry, menunjuk ke kanan)
@@ -98,7 +98,8 @@
         x: x1, y: y(o.top), width: x2 - x1, height: Math.max(1, y(o.bottom) - y(o.top)),
         fill: col, 'fill-opacity': 0.2, stroke: col, 'stroke-width': 1, 'stroke-dasharray': '3 2'
       }, gz);
-      var lt = el('text', { x: x1 + 3, y: y(o.top) + 10, 'class': 't-label', fill: col }, gz);
+      var lx = typeof o.labelI === 'number' ? x(o.labelI) - step / 2 + 3 : x1 + 3;
+      var lt = el('text', { x: lx, y: y(o.top) + 10, 'class': 't-label', fill: col }, gz);
       lt.textContent = o.label || o.kind;
     });
 

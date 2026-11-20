@@ -9,6 +9,8 @@
 <script src="../data/examples/bos.js"></script>
 <script src="../data/examples/choch.js"></script>
 <script src="../data/examples/fvg.js"></script>
+<script src="../data/examples/ifvg.js"></script>
+<script src="../data/examples/ob.js"></script>
 <script src="../js/chart.js"></script>
 <script>
 (function () {
@@ -81,6 +83,32 @@
         out.push({ j: j, dir: dir, level: s.price, levelIdx: s.i, trend: trend, kind: kind });
       });
     }
+    return out;
+  }
+
+  // IFVG: FVG yang ditembus BODY CLOSE berlawanan (breached) -> zona berbalik peran.
+  // bull FVG tertembus ke bawah = IFVG 'bear' (resisten); bear FVG tertembus ke atas = IFVG 'bull' (support).
+  // Hasil: [{i1, k, dir, top, bottom, closeBeyond}] k = candle body close yang menembus.
+  function detectIFVG(cs) {
+    return VyChart.detectFVG(cs).filter(function (f) { return f.breached; }).map(function (f) {
+      var c = cs[f.breachIndex];
+      return { i1: f.i1, k: f.breachIndex, dir: f.dir === 'bull' ? 'bear' : 'bull', top: f.top, bottom: f.bottom,
+               closeBeyond: f.dir === 'bull' ? c.c < f.bottom : c.c > f.top };
+    });
+  }
+
+  // OB: candle berlawanan TERAKHIR sebelum impuls yang body close menembus swing (BOS/CHoCH),
+  // dan candle berikutnya close melewati sisi OB (gerak kuat). Hasil: [{i, dir, top, bottom, j, level, levelIdx}]
+  function detectOB(cs) {
+    var out = [];
+    detectBreaks(cs).forEach(function (e) {
+      var up = e.dir === 'up', m = e.j - 1;
+      while (m >= 0 && (up ? cs[m].c >= cs[m].o : cs[m].c <= cs[m].o)) m--;
+      if (m < 0 || m <= e.levelIdx) return;
+      var o = cs[m], nx = cs[m + 1];
+      if (up ? !(nx.c > o.h) : !(nx.c < o.l)) return;
+      out.push({ i: m, dir: up ? 'bull' : 'bear', top: o.h, bottom: o.l, j: e.j, level: e.level, levelIdx: e.levelIdx });
+    });
     return out;
   }
 
@@ -256,6 +284,130 @@
     var touched = ex.candles[pos.i].l <= pos.entry && ex.candles[pos.i].h >= pos.entry;
     check(touched, ex.id + ': harga menyentuh entry di candle ke-' + pos.i);
   });
+
+  /* ===== FVG: minimal 2 valid (bullish + bearish) + 1 belum valid ===== */
+  check(window.EXAMPLES.fvg.filter(function (e) { return e.valid && /bull/.test(e.id); }).length >= 1 &&
+        window.EXAMPLES.fvg.filter(function (e) { return e.valid && /bear/.test(e.id); }).length >= 1, 'fvg: ada contoh valid bullish dan bearish');
+  check(window.EXAMPLES.fvg.some(function (e) { return e.valid === false; }), 'fvg: ada contoh BELUM VALID');
+
+  /* ===== Posisi umum (entry, SL, TP) untuk contoh zona ===== */
+  function checkPos(ex, zone, pos) {
+    var cs = ex.candles, long = pos.side === 'long';
+    check(cs[pos.i].l <= pos.entry && cs[pos.i].h >= pos.entry, ex.id + ': harga menyentuh entry di candle ke-' + pos.i);
+    var rr = Math.abs(pos.tp - pos.entry) / Math.abs(pos.entry - pos.sl);
+    check(near(rr, 2), ex.id + ': RR = 1:' + rr);
+    check(long ? (pos.sl < pos.entry && pos.tp > pos.entry) : (pos.sl > pos.entry && pos.tp < pos.entry), ex.id + ': SL/TP di sisi yang benar untuk ' + pos.side);
+    var mid = (zone.top + zone.bottom) / 2;
+    check(near(pos.entry, mid), ex.id + ': entry = 50% zona (' + mid + ')');
+    // SL di luar sisi jauh zona: long -> di bawah bawah zona, short -> di atas atas zona
+    check(long ? pos.sl < zone.bottom : pos.sl > zone.top, ex.id + ': SL di luar sisi jauh zona');
+    var res = outcome(cs, pos);
+    check(res === (ex.valid ? 'TP' : 'SL'), ex.id + ': hasil posisi = ' + res + ' (harapan: ' + (ex.valid ? 'TP' : 'SL') + ')');
+  }
+  function posOf(ex) { return ex.overlays.filter(function (o) { return o.type === 'position'; })[0]; }
+  function zoneOf(ex) { return ex.overlays.filter(function (o) { return o.type === 'zone'; })[0]; }
+
+  /* ===== IFVG (Tahap 3) ===== */
+  window.EXAMPLES.ifvg.forEach(function (ex) {
+    var cs = ex.candles, z = zoneOf(ex), pos = posOf(ex), long = pos.side === 'long';
+    check(candlesOk(ex), ex.id + ': semua candle OHLC konsisten');
+    var f = VyChart.detectFVG(cs).filter(function (x) { return x.i1 === z.i1; })[0];
+    check(!!f, ex.id + ': FVG asal terdeteksi di candle ke-' + z.i1);
+    if (!f) return;
+    check(near(f.top, z.top) && near(f.bottom, z.bottom), ex.id + ': zona gambar = zona FVG deteksi (' + f.bottom + '–' + f.top + ')');
+    var d = detectIFVG(cs).filter(function (x) { return x.i1 === z.i1; })[0];
+    if (ex.valid) {
+      check(!!d, ex.id + ': IFVG terdeteksi (FVG ditembus body close)');
+      if (!d) return;
+      check(d.k === ex.meta.breakAt, ex.id + ': titik tembus = candle ' + d.k + ' (digambar: ' + ex.meta.breakAt + ')');
+      check(d.closeBeyond, ex.id + ': candle tembus BODY CLOSE melewati sisi jauh zona');
+      check(z.kind === 'IFVG' && z.label === 'IFVG', ex.id + ': zona berlabel IFVG');
+      // peran berbalik: FVG bull tertembus -> posisi short, FVG bear tertembus -> posisi long
+      check((d.dir === 'bull') === long, ex.id + ': arah posisi = peran baru zona (IFVG ' + d.dir + ' -> ' + pos.side + ')');
+      check(f.dir === (long ? 'bear' : 'bull'), ex.id + ': FVG asal berlawanan dengan posisi (' + f.dir + ')');
+      check(pos.i > d.k, ex.id + ': entry (candle ' + pos.i + ') SETELAH tembus (candle ' + d.k + ') = menunggu retest');
+      // sebelum entry tidak ada body close balik melewati zona (kalau ada, IFVG batal)
+      var back = false;
+      for (var q = d.k + 1; q <= pos.i; q++) if (long ? cs[q].c < z.bottom : cs[q].c > z.top) back = true;
+      check(!back, ex.id + ': tidak ada body close balik melewati zona sampai entry');
+      // tidak boleh sudah tembus lebih awal dari titik tembus yang digambar
+      var early = false;
+      for (var q2 = f.i3 + 1; q2 < d.k; q2++) if (f.dir === 'bull' ? cs[q2].c < f.bottom : cs[q2].c > f.top) early = true;
+      check(!early, ex.id + ': tembus pertama kali di candle ' + d.k);
+      checkPos(ex, z, pos);
+    } else {
+      // belum IFVG: wick melewati sisi jauh, tapi body TIDAK close melewati
+      var w = ex.meta.wickAt, c = cs[w];
+      check(f.dir === 'bull' ? c.l < f.bottom : c.h > f.top, ex.id + ': wick candle ' + w + ' melewati sisi jauh zona');
+      check(f.dir === 'bull' ? Math.min(c.o, c.c) >= f.bottom : Math.max(c.o, c.c) <= f.top, ex.id + ': body candle ' + w + ' TIDAK melewati zona');
+      check(!f.breached && !d, ex.id + ': deteksi tidak menemukan IFVG (FVG belum tertembus)');
+      check(z.kind === 'FVG', ex.id + ': zona digambar sebagai FVG (masih hidup), bukan IFVG');
+      checkPos(ex, z, pos);
+    }
+  });
+  (function () {
+    var v = window.EXAMPLES.ifvg;
+    check(v.filter(function (e) { return e.valid && /bull/.test(e.id); }).length >= 1 &&
+          v.filter(function (e) { return e.valid && /bear/.test(e.id); }).length >= 1, 'ifvg: ada contoh bullish dan bearish');
+    check(v.some(function (e) { return e.valid === false; }), 'ifvg: ada contoh BELUM VALID');
+    var b = detectIFVG(v[1].candles).filter(function (x) { return x.i1 === 7; })[0];
+    check(!!b && b.dir === 'bull', 'ifvg-bear: FVG bearish tertembus ke atas jadi IFVG bull (support)');
+    // kasus kecil fungsi deteksi: wick saja tidak jadi IFVG, body close jadi IFVG
+    var base = [[10, 11, 9, 10.5], [10.5, 14, 10.4, 13.5], [13.5, 15, 12, 14]].map(function (r) { return { o: r[0], h: r[1], l: r[2], c: r[3] }; });
+    var wickOnly = base.concat([{ o: 14, h: 14.2, l: 10, c: 13 }]);
+    var bodyClose = base.concat([{ o: 14, h: 14.2, l: 9.5, c: 10.5 }]);
+    check(detectIFVG(wickOnly).length === 0, 'deteksi IFVG: wick menembus zona 11–12 tanpa body close TIDAK jadi IFVG');
+    check(detectIFVG(bodyClose).length === 1 && detectIFVG(bodyClose)[0].dir === 'bear', 'deteksi IFVG: body close di bawah zona = IFVG bear');
+  })();
+
+  /* ===== OB (Tahap 3) ===== */
+  window.EXAMPLES.ob.forEach(function (ex) {
+    var cs = ex.candles, z = zoneOf(ex), pos = posOf(ex), long = pos.side === 'long';
+    check(candlesOk(ex), ex.id + ': semua candle OHLC konsisten');
+    var d = detectOB(cs).filter(function (x) { return x.i === z.i1; })[0];
+    var ln = ex.overlays.filter(function (x) { return x.type === 'line'; })[0];
+    if (ex.valid) {
+      check(!!d, ex.id + ': OB terdeteksi di candle ke-' + z.i1);
+      if (!d) return;
+      var o = cs[d.i];
+      check(near(d.top, z.top) && near(d.bottom, z.bottom) && near(o.h, z.top) && near(o.l, z.bottom), ex.id + ': zona gambar = high–low candle OB (' + o.l + '–' + o.h + ')');
+      check(z.kind === 'OB' && z.label === 'OB', ex.id + ': zona berlabel OB');
+      check((d.dir === 'bull') === long, ex.id + ': arah OB sesuai posisi (' + d.dir + ' -> ' + pos.side + ')');
+      check(long ? o.c < o.o : o.c > o.o, ex.id + ': candle OB ' + (long ? 'turun' : 'naik') + ' (berlawanan arah impuls)');
+      check(d.j === ex.meta.breakAt, ex.id + ': struktur tertembus di candle ' + d.j + ' (digambar: ' + ex.meta.breakAt + ')');
+      var br = cs[d.j];
+      check(long ? br.c > d.level : br.c < d.level, ex.id + ': candle ' + d.j + ' BODY CLOSE melewati swing ' + d.level);
+      check(!!ln && near(ln.y, d.level) && ln.i1 === d.levelIdx && ln.i2 === d.j, ex.id + ': garis struktur digambar di swing candle ' + d.levelIdx + ' sampai tembus candle ' + d.j);
+      // OB = candle berlawanan TERAKHIR: semua candle sesudahnya sampai titik tembus searah impuls
+      var allDir = true;
+      for (var r = d.i + 1; r <= d.j; r++) if (long ? cs[r].c <= cs[r].o : cs[r].c >= cs[r].o) allDir = false;
+      check(allDir, ex.id + ': semua candle setelah OB sampai titik tembus searah impuls');
+      check(pos.i > d.j, ex.id + ': entry (candle ' + pos.i + ') setelah struktur tertembus (candle ' + d.j + ')');
+      var pierced = false;
+      for (var q = d.i + 1; q <= pos.i; q++) if (long ? cs[q].c < z.bottom : cs[q].c > z.top) pierced = true;
+      check(!pierced, ex.id + ': OB belum ditembus body close berlawanan sampai entry');
+      checkPos(ex, z, pos);
+    } else {
+      check(!d, ex.id + ': deteksi TIDAK menemukan OB di candle ' + z.i1);
+      // gerak naik setelah candle itu tidak pernah body close melewati swing high terakhir
+      var sw = detectSwings(cs).filter(function (s) { return s.type === 'H' && s.i + K < z.i1; });
+      var lvl = sw[sw.length - 1].price;
+      var closes = cs.some(function (c, k) { return k > z.i1 && c.c > lvl; });
+      check(!closes, ex.id + ': tidak ada body close di atas swing high ' + lvl);
+      var wk = cs[ex.meta.wickAt];
+      check(wk.h > lvl && Math.max(wk.o, wk.c) <= lvl, ex.id + ': candle ' + ex.meta.wickAt + ' hanya wick melewati ' + lvl + ' (body tidak)');
+      check(!!ln && near(lvl, ln.y), ex.id + ': garis struktur digambar di swing high ' + lvl);
+      check(z.kind === 'OFF', ex.id + ': zona digambar abu-abu (tidak valid)');
+      checkPos(ex, z, pos);
+    }
+  });
+  (function () {
+    var v = window.EXAMPLES.ob;
+    check(v.filter(function (e) { return e.valid && /bull/.test(e.id); }).length >= 1 &&
+          v.filter(function (e) { return e.valid && /bear/.test(e.id); }).length >= 1, 'ob: ada contoh bullish dan bearish');
+    check(v.some(function (e) { return e.valid === false; }), 'ob: ada contoh BELUM VALID');
+    check(detectOB(v[1].candles).some(function (x) { return x.i === 18 && x.dir === 'bear'; }), 'ob-bear: terdeteksi sebagai OB bearish');
+  })();
 
   /* ===== Materi: tiap konsep punya contoh dan 4 bagian kartu ===== */
   window.CONCEPTS.forEach(function (c) {

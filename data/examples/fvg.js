@@ -41,7 +41,7 @@
       id: 'fvg-bull', tab: 'Bullish', title: 'FVG bullish (valid) + entry LP', valid: true,
       symbol: 'XAUUSD', tf: 'M15', candles: bull,
       overlays: [
-        { type: 'zone', kind: 'FVG', i1: 7, i2: 14, top: 2652, bottom: 2647, label: 'FVG' },
+        { type: 'zone', kind: 'FVG', i1: 7, i2: 14, labelI: 10, top: 2652, bottom: 2647, label: 'FVG' },
         { type: 'text', i: 7, y: 2643, dy: 11, text: '1' },
         { type: 'text', i: 8, y: 2644, dy: 11, text: '2' },
         { type: 'text', i: 9, y: 2662, dy: -4, text: '3' },
@@ -54,7 +54,7 @@
       id: 'fvg-bear', tab: 'Bearish', title: 'FVG bearish (valid) + entry SP', valid: true,
       symbol: 'XAUUSD', tf: 'M15', candles: bear,
       overlays: [
-        { type: 'zone', kind: 'FVG', i1: 7, i2: 14, top: m(2647), bottom: m(2652), label: 'FVG' },
+        { type: 'zone', kind: 'FVG', i1: 7, i2: 14, labelI: 10, top: m(2647), bottom: m(2652), label: 'FVG' },
         { type: 'text', i: 7, y: m(2643), dy: -4, text: '1' },
         { type: 'text', i: 8, y: m(2644), dy: -4, text: '2' },
         { type: 'text', i: 9, y: m(2662), dy: 11, text: '3' },
@@ -67,12 +67,12 @@
       id: 'fvg-broken', tab: 'Belum valid', title: 'FVG sudah tertembus (jangan dipakai)', valid: false,
       symbol: 'XAUUSD', tf: 'M15', candles: broken,
       overlays: [
-        { type: 'zone', kind: 'OFF', i1: 7, i2: 14, top: 2652, bottom: 2647, label: 'FVG' },
+        { type: 'zone', kind: 'OFF', i1: 7, i2: 14, labelI: 10, top: 2652, bottom: 2647, label: 'FVG' },
         { type: 'text', i: 13, y: 2638, text: 'Body close tembus zona', anchor: 'end' },
         { type: 'arrow', i: 13, y: LONG.entry, label: 'Entry' },
         { type: 'position', side: 'long', i: 13, i2: 15, entry: LONG.entry, sl: LONG.sl, tp: LONG.tp }
       ],
-      note: 'Candle 13 body close di 2645, di bawah batas bawah zona (2647). Zona itu tidak dipakai lagi: LP di 2649.5 kena SL 2645. Pembahasan IFVG ada di Tahap 3.'
+      note: 'Candle 13 body close di 2645, di bawah batas bawah zona (2647). Zona itu tidak dipakai lagi: LP di 2649.5 kena SL 2645. Kalau setelah itu harga kembali ke zona dari sisi seberang, zona ini bisa jadi IFVG (lihat materi IFVG).'
     }
   ];
 })();

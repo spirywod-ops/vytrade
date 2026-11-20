@@ -15,7 +15,7 @@
 (function () {
   var q = new URLSearchParams(location.search);
   var routes = q.get('r') ? [q.get('r')] :
-    ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'latihan', 'setup', 'jurnal'];
+    ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob', 'latihan', 'setup', 'jurnal'];
   var keepOn = q.get('ov') === '1';
   var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
   function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
@@ -56,12 +56,14 @@
             if (keepOn) b.click();
           });
           check(okBtn, r + ': tombol zona: mati -> nyala -> mati, overlay ada isinya');
+          if (r === 'belajar/ob' || r === 'belajar/fvg') check(/FVG atau OB, pilih yang mana\?/.test(d.getElementById('view').textContent), r + ': bagian "FVG atau OB, pilih yang mana?" tampil');
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN" di halaman');
         } else {
           check(d.getElementById('view').textContent.length > 20, r + ': halaman terisi');
           if (r === 'belajar') {
             var links = d.querySelectorAll('a.card.link');
             check(links.length >= 6, 'belajar: ' + links.length + ' kartu materi (Dasar + Struktur + FVG)');
+            check(/FVG|IFVG|OB/.test(d.getElementById('view').textContent) && links.length >= 8, 'belajar: kartu IFVG dan OB ada (' + links.length + ' kartu)');
             check(/Edukasi, bukan saran keuangan/.test(d.getElementById('view').textContent), 'belajar: disclaimer tampil');
           }
         }

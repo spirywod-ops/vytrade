@@ -43,6 +43,29 @@ window.CONCEPTS = [
     apa: 'FVG adalah celah harga yang tertinggal saat harga bergerak sangat cepat. Zona ini sering didatangi lagi sebelum harga lanjut.',
     cara: 'Cari 3 candle berurutan dengan candle tengah besar. Celah antara high candle 1 dan low candle 3 (bullish) adalah zonanya; bearish kebalikannya.',
     syarat: 'Bullish: low candle ke-3 di atas high candle ke-1. Bearish: high candle ke-3 di bawah low candle ke-1. Zona belum ditembus body close berlawanan.',
-    salah: 'Menganggap wick yang menembus zona sebagai tembus (yang dihitung body close). Memakai FVG yang sudah tertembus, atau pasang SL di dalam zona.'
+    salah: 'Menganggap wick yang menembus zona sebagai tembus (yang dihitung body close). Memakai FVG yang sudah tertembus, atau pasang SL di dalam zona.',
+    pilih: true
+  },
+  {
+    id: 'ifvg', group: 'Zona', title: 'IFVG (Inverse FVG)', examples: 'ifvg',
+    apa: 'IFVG adalah FVG yang ditembus body close berlawanan, lalu zonanya berbalik peran. FVG bullish yang ditembus ke bawah jadi resisten bearish, dan sebaliknya.',
+    cara: 'Tandai FVG, tunggu body close menembus sisi jauhnya. Lalu tunggu harga kembali ke zona (retest) dan entry di titik tengah (50%) searah tembusan.',
+    syarat: 'Wajib body close melewati sisi jauh zona. Setelah itu harga tidak boleh body close balik melewati zona.',
+    salah: 'Menyebut IFVG padahal hanya wick yang menembus; FVG-nya masih hidup. Entry saat tembus tanpa menunggu harga kembali ke zona juga keliru.',
+    pilih: false
+  },
+  {
+    id: 'ob', group: 'Zona', title: 'OB (Order Block)', examples: 'ob',
+    apa: 'OB adalah candle berlawanan arah yang terakhir sebelum gerak kuat yang menembus struktur. Zonanya sering didatangi lagi sebelum harga lanjut.',
+    cara: 'OB bullish: candle turun terakhir sebelum naik kuat. OB bearish: candle naik terakhir sebelum turun kuat. Zona = high–low candle itu, titik tengah (50%) boleh jadi entry.',
+    syarat: 'Gerak setelahnya kuat dan body close menembus swing (BOS atau CHoCH). Zona belum ditembus body close berlawanan.',
+    salah: 'Menandai OB padahal gerak setelahnya tidak menembus struktur (hanya wick). SL di dalam zona juga keliru; SL harus di luar sisi jauh zona.',
+    pilih: true
   }
 ];
+
+/* Bagian "FVG atau OB, pilih yang mana?" (tampil di kartu yang bertanda pilih: true). */
+window.PILIH = {
+  judul: 'FVG atau OB, pilih yang mana?',
+  teks: 'Keduanya sama-sama zona entry, jadi pilih yang paling jelas dan searah TF besar. Kalau FVG dan OB bertumpuk di area yang sama, itu area yang lebih kuat. Kalau hanya ada satu, tetap boleh dipakai selama syaratnya valid.'
+};

@@ -99,6 +99,10 @@
     root.appendChild(card);
     root.appendChild(h('h2', { text: 'Contoh chart' }));
     (window.EXAMPLES[c.examples] || []).forEach(function (ex) { root.appendChild(exampleBlock(ex)); });
+    if (c.pilih && window.PILIH) {
+      root.appendChild(h('h2', { text: window.PILIH.judul }));
+      root.appendChild(h('div', { class: 'card' }, [h('p', { text: window.PILIH.teks })]));
+    }
     return root;
   }
 
