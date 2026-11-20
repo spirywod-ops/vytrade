@@ -1,0 +1,89 @@
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --ink: #14171c; --muted: #5c6370; --line: #dfe2e7;
+  --accent: #2f7bf6; --ok: #1f9d55; --bad: #e04848;
+  --chart-bg: #ffffff; --grid: #e8eaee;
+  --up-fill: #ffffff; --up-stroke: #111111; --dn-fill: #111111; --dn-stroke: #111111;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1013; --card: #1a1d23; --ink: #eef0f3; --muted: #9aa1ad; --line: #2a2f38;
+    --accent: #5b9bff;
+    --chart-bg: #14171c; --grid: #232830;
+    --up-fill: #ffffff; --up-stroke: #ffffff; --dn-fill: #000000; --dn-stroke: #c9ced6;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main {
+  max-width: 640px; margin: 0 auto; outline: none;
+  padding: calc(14px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+           calc(90px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
+h1 { font-size: 24px; margin: 8px 0 12px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 8px; }
+h3 { font-size: 15px; margin: 12px 0 2px; }
+p { margin: 0 0 8px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+.hero { padding: 8px 0 4px; }
+.brand { font-size: 34px; margin: 0; letter-spacing: -.5px; }
+.disclaimer {
+  display: inline-block; margin-top: 4px; padding: 6px 12px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line); font-size: 14px; font-weight: 600;
+}
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+.card h3:first-child { margin-top: 0; }
+a.card.link { display: flex; justify-content: space-between; align-items: center; min-height: 52px; color: inherit; text-decoration: none; font-weight: 600; }
+.chev { color: var(--muted); font-size: 22px; }
+.soon-row { margin: 0 0 8px; }
+.soon { text-align: center; padding: 28px 14px; }
+.big { font-size: 20px; font-weight: 700; }
+.back { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); text-decoration: none; font-weight: 600; }
+
+.ex-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.ex-head h3 { margin: 0 0 4px; }
+.badge { flex: none; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; color: #fff; }
+.badge.ok { background: var(--ok); }
+.badge.bad { background: var(--bad); }
+.chart-box { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--chart-bg); margin: 6px 0 10px; }
+.btn {
+  display: block; width: 100%; min-height: 44px; border: 0; border-radius: 10px;
+  background: var(--accent); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.btn:active { opacity: .8; }
+.note { margin: 10px 0 0; font-size: 14px; }
+
+/* Chart */
+.chart { display: block; width: 100%; height: auto; background: var(--chart-bg); color: var(--ink); }
+.chart.ov-off .ov { display: none; }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart .t-axis { fill: var(--muted); font-size: 8.5px; }
+.chart .t-corner { fill: var(--ink); font-size: 11px; font-weight: 700; }
+.chart .t-ilus { fill: var(--muted); font-size: 8px; font-style: italic; }
+.chart .t-label, .chart .t-small {
+  fill: var(--ink); font-size: 9.5px; font-weight: 700;
+  paint-order: stroke; stroke: var(--chart-bg); stroke-width: 3px; stroke-linejoin: round;
+}
+.chart .t-small { font-size: 8.5px; }
+.chart .wick.up { stroke: var(--up-stroke); } .chart .wick.dn { stroke: var(--dn-stroke); } .chart .wick { stroke-width: 1; }
+.chart .body.up { fill: var(--up-fill); stroke: var(--up-stroke); stroke-width: 1; }
+.chart .body.dn { fill: var(--dn-fill); stroke: var(--dn-stroke); stroke-width: 1; }
+.chart .arrow { stroke: var(--ink); } .chart .arrow-head { fill: var(--ink); }
+.chart .entry-line { stroke: var(--ink); }
+
+#tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; display: flex;
+  background: var(--card); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#tabbar a {
+  flex: 1; min-height: 52px; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600;
+}
+#tabbar a.active { color: var(--accent); box-shadow: inset 0 2px 0 var(--accent); }

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Validasi VyTrade</title></head>
+<body>
+<pre id="out">menjalankan...</pre>
+<script src="../data/concepts.js"></script>
+<script src="../data/examples/fvg.js"></script>
+<script src="../js/chart.js"></script>
+<script>
+(function () {
+  var lines = [], fail = 0;
+  function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
+  function near(a, b) { return Math.abs(a - b) < 1e-9; }
+
+  window.EXAMPLES.fvg.forEach(function (ex) {
+    var found = VyChart.detectFVG(ex.candles);
+    var zones = ex.overlays.filter(function (o) { return o.type === 'zone' && (o.kind === 'FVG' || o.kind === 'OFF'); });
+    var pos = ex.overlays.filter(function (o) { return o.type === 'position'; })[0];
+    check(zones.length === 1, ex.id + ': ada 1 zona FVG di overlay');
+    var z = zones[0];
+    var d = found.filter(function (f) { return f.i1 === z.i1; })[0];
+    check(!!d, ex.id + ': FVG terdeteksi di candle ke-' + z.i1);
+    if (d) {
+      check(near(d.top, z.top) && near(d.bottom, z.bottom), ex.id + ': zona gambar = zona deteksi (' + d.bottom + '–' + d.top + ')');
+      check(d.breached === !ex.valid, ex.id + ': status tertembus = ' + d.breached + ' (harapan: ' + !ex.valid + ')');
+      if (ex.valid) check(z.i2 < ex.candles.length, ex.id + ': zona belum ditembus sampai akhir');
+      var mid = (d.top + d.bottom) / 2;
+      check(near(pos.entry, mid), ex.id + ': entry = 50% zona (' + mid + ')');
+      var long = d.dir === 'bull';
+      check((pos.side === 'long') === long, ex.id + ': arah posisi sesuai FVG (' + pos.side + ')');
+      var sl = long ? d.bottom : d.top;
+      check(long ? pos.sl < sl : pos.sl > sl, ex.id + ': SL di luar sisi jauh zona');
+      var rr = Math.abs(pos.tp - pos.entry) / Math.abs(pos.entry - pos.sl);
+      check(near(rr, 2), ex.id + ': RR = 1:' + rr);
+    }
+    // candle valid: high >= max(o,c), low <= min(o,c)
+    var okc = ex.candles.every(function (c) { return c.h >= Math.max(c.o, c.c) && c.l <= Math.min(c.o, c.c); });
+    check(okc, ex.id + ': semua candle OHLC konsisten');
+    // posisi long/short terisi: harga menyentuh entry di candle i
+    var touched = ex.candles[pos.i].l <= pos.entry && ex.candles[pos.i].h >= pos.entry;
+    check(touched, ex.id + ': harga menyentuh entry di candle ke-' + pos.i);
+  });
+
+  lines.push(fail ? ('TOTAL GAGAL: ' + fail) : 'SEMUA LOLOS');
+  document.getElementById('out').textContent = lines.join('\n');
+})();
+</script>
+</body></html>
