@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Smoke test VyTrade</title>
+<style>
+  body { margin: 0; font: 13px monospace; }
+  #out { white-space: pre-wrap; padding: 8px; }
+  iframe { width: 390px; height: 3000px; border: 0; display: block; }
+</style></head>
+<body>
+<pre id="out">menjalankan...</pre>
+<iframe id="f" title="app"></iframe>
+<script>
+/* Buka tiap halaman Belajar di iframe, cek chart tampil, lalu nyalakan/matikan tombol zona.
+   Pakai: python -m http.server 8080, buka http://localhost:8080/tests/smoke.html
+   Tambah ?ov=1 untuk membiarkan semua zona menyala (untuk screenshot), ?r=belajar/choch untuk satu halaman. */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var routes = q.get('r') ? [q.get('r')] :
+    ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'latihan', 'setup', 'jurnal'];
+  var keepOn = q.get('ov') === '1';
+  var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
+  function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
+  function done() {
+    lines.push(fail ? 'TOTAL GAGAL: ' + fail : 'SEMUA LOLOS');
+    document.getElementById('out').textContent = lines.join('\n');
+  }
+
+  function step() {
+    if (idx >= routes.length) return done();
+    var r = routes[idx++];
+    errs = [];
+    f.onload = function () {
+      var w = f.contentWindow, d = f.contentDocument;
+      w.addEventListener('error', function (e) { errs.push(e.message); });
+      w.location.hash = '#/' + r;
+      setTimeout(function () {
+        var arts = d.querySelectorAll('article.ex'), svgs = d.querySelectorAll('svg.chart');
+        var isBelajarKonsep = /^belajar\/./.test(r);
+        if (isBelajarKonsep) {
+          check(arts.length > 0 && svgs.length === arts.length, r + ': ' + svgs.length + ' chart tampil untuk ' + arts.length + ' contoh');
+          // tiap chart punya candle (body+wick), label TF, tulisan Ilustrasi
+          check(Array.prototype.every.call(svgs, function (s) {
+            return s.querySelectorAll('rect.body').length >= 8 && s.querySelectorAll('line.wick').length >= 8 &&
+                   /XAUUSD · M15/.test(s.textContent) && /Ilustrasi/.test(s.textContent);
+          }), r + ': candle (body+wick), label "XAUUSD · M15", dan "Ilustrasi" ada di semua chart');
+          // tombol zona: awalnya tersembunyi, menyala, lalu mati lagi
+          var okBtn = true;
+          Array.prototype.forEach.call(arts, function (a) {
+            var s = a.querySelector('svg.chart'), b = a.querySelector('button.btn');
+            var off0 = s.classList.contains('ov-off');
+            b.click();
+            var on1 = !s.classList.contains('ov-off') && /Sembunyikan/.test(b.textContent);
+            var shown = s.querySelectorAll('g.ov text, g.ov rect, g.ov line').length;
+            b.click();
+            var off2 = s.classList.contains('ov-off') && /Tampilkan/.test(b.textContent);
+            if (!(off0 && on1 && off2 && shown > 0)) okBtn = false;
+            if (keepOn) b.click();
+          });
+          check(okBtn, r + ': tombol zona: mati -> nyala -> mati, overlay ada isinya');
+          check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN" di halaman');
+        } else {
+          check(d.getElementById('view').textContent.length > 20, r + ': halaman terisi');
+          if (r === 'belajar') {
+            var links = d.querySelectorAll('a.card.link');
+            check(links.length >= 6, 'belajar: ' + links.length + ' kartu materi (Dasar + Struktur + FVG)');
+            check(/Edukasi, bukan saran keuangan/.test(d.getElementById('view').textContent), 'belajar: disclaimer tampil');
+          }
+        }
+        check(errs.length === 0, r + ': tidak ada error JS saat dibuka/diklik' + (errs.length ? ' -> ' + errs.join('; ') : ''));
+        step();
+      }, 150);
+    };
+    f.src = '../index.html?x=' + idx;
+  }
+  step();
+})();
+</script>
+</body></html>

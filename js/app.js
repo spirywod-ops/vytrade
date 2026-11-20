@@ -70,12 +70,15 @@
       btn.textContent = on ? 'Sembunyikan zona' : 'Tampilkan zona';
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    // valid true/false = VALID / BELUM VALID; tanpa `valid` (contoh anatomi) = badge netral.
+    var bcls = ex.valid === true ? 'ok' : ex.valid === false ? 'bad' : 'info';
+    var btxt = ex.valid === true ? 'VALID' : ex.valid === false ? 'BELUM VALID' : (ex.badge || 'CONTOH');
     return h('article', { class: 'card ex' }, [
       h('div', { class: 'ex-head' }, [
         h('h3', { text: ex.title }),
-        h('span', { class: 'badge ' + (ex.valid ? 'ok' : 'bad'), text: ex.valid ? 'VALID' : 'BELUM VALID' })
+        h('span', { class: 'badge ' + bcls, text: btxt })
       ]),
-      h('p', { class: 'muted small', text: 'Coba tebak dulu di mana zonanya, lalu tekan tombol.' }),
+      h('p', { class: 'muted small', text: ex.hint || 'Coba tebak dulu di mana zonanya, lalu tekan tombol.' }),
       box, btn,
       h('p', { class: 'note', text: ex.note })
     ]);

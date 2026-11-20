@@ -10,6 +10,7 @@ Nama "VyTrade" dipakai di: `manifest.webmanifest` (`name` dan `short_name`), `<t
 - Bahasa Indonesia, jawaban singkat, langsung ke langkah.
 - Pengguna pemula di Windows: setiap langkah teknis dipandu klik demi klik, berurutan.
 - Kerjakan per TAHAP (lihat bawah). Berhenti di akhir tiap tahap, beri cara menguji, tanya sebelum lanjut.
+- Setelah tiap tahap selesai dan lolos validasi, tanya saya dulu. Kalau saya setuju, commit dengan pesan singkat berbahasa Indonesia dan push ke main. Jangan commit file rahasia. Jangan force push.
 - Jangan menambah library atau framework tanpa izin. Install tool (mis. Pillow untuk ikon) tanya dulu.
 
 ## Aturan teknis

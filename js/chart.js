@@ -2,7 +2,7 @@
    Overlay (array `overlays` di spec), koordinat pakai index candle (i) dan harga (y):
    - zone:     {type:'zone', kind:'FVG'|'IFVG'|'OB'|'OFF', i1, i2, top, bottom, label}
    - position: {type:'position', side:'long'|'short', i, i2, entry, sl, tp}  (kotak TP hijau, SL merah, label LP/SP)
-   - line:     {type:'line', i1, i2, y, label, color, dash}   (level BOS/CHoCH, dll)
+   - line:     {type:'line', i1, i2, y, label, color, dash, pos:'above'|'below', labelAt:'start'}   (level BOS/CHoCH, dll)
    - arrow:    {type:'arrow', i, y, label}                    (panah entry, menunjuk ke kanan)
    - text:     {type:'text', i, y, dy, text, anchor}
 */
@@ -131,7 +131,12 @@
         var lc = o.color || COLORS.LINE;
         el('line', { x1: x(o.i1), x2: x(o.i2), y1: y(o.y), y2: y(o.y), stroke: lc, 'stroke-width': 1, 'stroke-dasharray': o.dash === false ? '' : '4 3' }, ga);
         if (o.label) {
-          tx = el('text', { x: x(o.i2), y: y(o.y) - 3, 'text-anchor': 'end', 'class': 't-label', fill: lc }, ga);
+          // pos: 'above' (default) | 'below' = label di atas/bawah garis; labelAt: 'start' = di ujung kiri garis.
+          var atStart = o.labelAt === 'start';
+          tx = el('text', {
+            x: atStart ? x(o.i1) : x(o.i2), y: y(o.y) + (o.pos === 'below' ? 11 : -3),
+            'text-anchor': atStart ? 'start' : 'end', 'class': 't-label', fill: lc
+          }, ga);
           tx.textContent = o.label;
         }
       } else if (o.type === 'arrow') {
