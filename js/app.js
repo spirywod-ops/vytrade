@@ -284,6 +284,7 @@
   }
 
   var latihan = window.VyLatihan.build(h);
+  var jurnal = window.VyJurnal.build(h);
 
   function route() {
     if (cleanup) { cleanup(); cleanup = null; }
@@ -292,7 +293,7 @@
     if (tab === 'belajar') node = parts[1] === 'topdown' ? viewTopdown(parts[2], parts[3]) : parts[1] ? viewKonsep(parts[1]) : viewBelajar();
     else if (tab === 'latihan') node = latihan.route(parts);
     else if (tab === 'setup') node = viewSetup();
-    else if (tab === 'jurnal') node = comingSoon('Jurnal', 'Catat setup dan hasil, plus ekspor/impor cadangan JSON.');
+    else if (tab === 'jurnal') node = jurnal.view();
     else { location.replace('#/belajar'); return; }
     setTab(tab);
     view.innerHTML = '';

@@ -162,3 +162,16 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 }
 .gl h3 { margin-top: 0; }
 .gl-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
+
+/* Jurnal */
+.fld { display: block; margin-bottom: 10px; }
+.fld input, .fld select, .fld textarea {
+  display: block; width: 100%; min-height: 44px; margin-top: 2px; padding: 8px 10px; font: inherit; font-size: 16px;
+  color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+}
+.rr { font-weight: 600; margin: 0 0 10px; }
+.rr.warn { color: var(--bad); }
+.gap { height: 10px; }
+.jr-act { display: flex; gap: 8px; }
+.danger-txt { color: var(--bad); }
+#cad-msg { margin: 10px 0 0; }

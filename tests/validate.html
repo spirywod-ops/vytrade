@@ -19,6 +19,7 @@
 <script src="../js/chart.js"></script>
 <script src="../js/setup.js"></script>
 <script src="../js/latihan.js"></script>
+<script src="../js/jurnal.js"></script>
 <script>
 (function () {
   var lines = [], fail = 0;
@@ -668,6 +669,53 @@
       }
       return true;
     }), 'kuis: acak opsi tetap menyisakan satu jawaban benar sesuai kunci');
+  })();
+
+  /* ===== Jurnal (Tahap 6) ===== */
+  (function () {
+    var J = window.VyJurnal;
+    function fake(init) { var m = Object.assign({}, init || {}); return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; }, _m: m }; }
+    // RR
+    var l = J.calcRR('LP', 2000, 1990, 2020), s = J.calcRR('SP', 2000, 2010, 1980);
+    check(l.ok && near(l.rr, 2) && s.ok && near(s.rr, 2), 'jurnal RR: long 2000/1990/2020 = 1:2 dan short 2000/2010/1980 = 1:2');
+    check(near(J.calcRR('LP', 2000, 1990, 2015).rr, 1.5) && near(J.calcRR('SP', 2000, 2010, 1990).rr, 1), 'jurnal RR: 1:1.5 (long) dan 1:1 (short) di bawah 1:2');
+    check(!J.calcRR('LP', 2000, 2010, 2020).ok && !J.calcRR('LP', 2000, 1990, 1980).ok && !J.calcRR('SP', 2000, 1990, 1980).ok && !J.calcRR('SP', 2000, 2010, 2020).ok, 'jurnal RR: urutan harga salah ditolak (SL/TP di sisi keliru)');
+    check(!J.calcRR('LP', '', 1990, 2020).ok && !J.calcRR('LP', 2000, 2000, 2020).ok && !J.calcRR('LP', 'abc', 1, 2).ok, 'jurnal RR: kosong, risiko nol, bukan angka ditolak');
+    // Statistik
+    function E(dir, en, sl, tp, res, chk) { return J.cleanEntry({ dir: dir, entry: en, sl: sl, tp: tp, result: res, checklist: chk }); }
+    var list = [E('LP', 2000, 1990, 2020, 'tp', 'valid'), E('SP', 2000, 2010, 1980, 'tp', 'valid'), E('LP', 2000, 1990, 2020, 'sl', 'valid'),
+                E('LP', 2000, 1990, 2020, 'sl', 'belum'), E('LP', 2000, 1990, 2020, 'be', 'belum'), E('LP', 2000, 1990, 2020, 'open', 'belum'), E('LP', 2000, 1990, 2020, 'tp', '')];
+    var st = J.stats(list);
+    check(st.count === 7 && st.closed === 6 && st.wins === 3 && near(st.winRate, 0.5) && near(st.totalR, 4), 'jurnal statistik: 7 setup, 6 selesai, win rate 50%, total +4R');
+    check(st.valid.count === 3 && near(st.valid.winRate, 2 / 3) && near(st.valid.totalR, 3) && st.belum.count === 3 && st.belum.wins === 0 && near(st.belum.totalR, -1), 'jurnal statistik: VALID (2/3 menang, +3R) vs BELUM (0 menang, -1R)');
+    var z = J.stats([]);
+    check(z.count === 0 && z.winRate === null && z.totalR === 0, 'jurnal statistik: data kosong -> win rate kosong, 0R');
+    // Validasi impor
+    var good = J.buildBackup(fake({ 'vytrade.jurnal': JSON.stringify({ v: 1, entries: list }) }));
+    var gt = JSON.stringify(good);
+    check(J.validateBackup(gt).ok && J.validateBackup(gt).summary.jurnal === 7, 'impor: file valid diterima, ringkasan 7 jurnal');
+    var bad = J.validateBackup('{rusak');
+    check(!bad.ok && /rusak/.test(bad.error), 'impor: file rusak ditolak (' + bad.error + ')');
+    var v2 = JSON.parse(gt); v2.schema = 99;
+    var rv = J.validateBackup(JSON.stringify(v2));
+    check(!rv.ok && /Versi/.test(rv.error), 'impor: versi salah ditolak (' + rv.error + ')');
+    var emp = J.validateBackup(JSON.stringify(J.buildBackup(fake())));
+    check(!emp.ok && /kosong/.test(emp.error), 'impor: data kosong ditolak (' + emp.error + ')');
+    check(!J.validateBackup('{"app":"Lain","schema":1,"data":{}}').ok && !J.validateBackup('[]').ok && !J.validateBackup('null').ok, 'impor: bukan cadangan VyTrade / array / null ditolak');
+    var v3 = JSON.parse(gt); v3.data.jurnal = { v: 1, entries: 'x' };
+    check(!J.validateBackup(JSON.stringify(v3)).ok, 'impor: jurnal dengan entries bukan array ditolak');
+    var v4 = JSON.parse(gt); v4.data.progress = [1];
+    check(!J.validateBackup(JSON.stringify(v4)).ok, 'impor: progres bukan objek ditolak');
+    // Ekspor -> impor menghasilkan data sama
+    var a = fake({ 'vytrade.jurnal': JSON.stringify({ v: 1, entries: list }), 'vytrade.progress': JSON.stringify({ best: { dasar: { score: 5, total: 7 } }, hafal: { fvg: true } }), 'vytrade.setup': JSON.stringify({ dir: 'buy', checked: { b1: true } }) });
+    var exp1 = J.buildBackup(a, 1), vr = J.validateBackup(JSON.stringify(exp1));
+    var b = fake({ 'vytrade.progress': '{"best":{"x":{"score":1,"total":1}},"hafal":{}}' });
+    J.applyBackup(vr.backup, b);
+    var exp2 = J.buildBackup(b, 1);
+    check(vr.ok && JSON.stringify(exp1) === JSON.stringify(exp2), 'ekspor lalu impor: data identik (jurnal, progres, checklist)');
+    var c = fake(); J.applyBackup(J.validateBackup(JSON.stringify(J.buildBackup(fake({ 'vytrade.jurnal': JSON.stringify({ v: 1, entries: list }) })))).backup, c);
+    check(c.getItem('vytrade.progress') === null && J.loadJurnal(c).entries.length === 7, 'impor: bagian yang kosong di file menghapus data lama (progres)');
+    check(J.loadJurnal(fake({ 'vytrade.jurnal': '{bukan json' })).entries.length === 0 && J.loadJurnal(fake({ 'vytrade.jurnal': '{"v":7,"entries":[]}' })).entries.length === 0, 'jurnal: data lokal rusak/versi asing -> daftar kosong, tidak error');
   })();
 
   lines.push(fail ? ('TOTAL GAGAL: ' + fail) : 'SEMUA LOLOS');

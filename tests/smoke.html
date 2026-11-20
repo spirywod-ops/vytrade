@@ -30,9 +30,16 @@
   }
 
   /* ===== Tab Latihan (Tahap 5) ===== */
-  var PKEY = 'vytrade.progress', pBackup = null, pSaved = false;
-  function pStart() { if (pSaved) return; pSaved = true; try { pBackup = localStorage.getItem(PKEY); localStorage.removeItem(PKEY); } catch (e) {} }
-  function pRestore() { if (!pSaved) return; try { if (pBackup === null) localStorage.removeItem(PKEY); else localStorage.setItem(PKEY, pBackup); } catch (e) {} }
+  // Smoke test memakai localStorage asli: cadangkan semua data pengguna di awal, pulihkan di akhir.
+  var ALLKEYS = ['vytrade.progress', 'vytrade.jurnal', 'vytrade.setup'], backups = {}, pSaved = false;
+  function pStart() {
+    if (pSaved) return; pSaved = true;
+    try { ALLKEYS.forEach(function (k) { backups[k] = localStorage.getItem(k); }); localStorage.removeItem('vytrade.progress'); } catch (e) {}
+  }
+  function pRestore() {
+    if (!pSaved) return;
+    try { ALLKEYS.forEach(function (k) { if (backups[k] === null) localStorage.removeItem(k); else localStorage.setItem(k, backups[k]); }); } catch (e) {}
+  }
 
   function svgToClient(svg, sx, sy) {
     var r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
@@ -122,10 +129,88 @@
     }
   }
 
+  /* ===== Tab Jurnal (Tahap 6) ===== */
+  function jurnalTest(w, d, next) {
+    var V = d.getElementById('view'), J = w.VyJurnal;
+    var ctl = V.querySelectorAll('#form input, #form select, #form textarea');
+    // urutan: waktu, pair, arah, bias, TF entry, entry, SL, TP, hasil, checklist, catatan
+    var fTime = ctl[0], fDir = ctl[2], fEntry = ctl[5], fSL = ctl[6], fTP = ctl[7], fRes = ctl[8], fChk = ctl[9], fNote = ctl[10];
+    function put(el, v) { el.value = v; el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); }
+    check(ctl.length === 11 && /^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(fTime.value), 'jurnal: form lengkap (11 isian), tanggal+jam terisi otomatis');
+    check(/Belum ada catatan/.test(V.textContent) && /Ekspor/.test(V.textContent) && /secara berkala/.test(V.textContent) && !/Segera hadir/.test(V.textContent), 'jurnal: kosong di awal, pengingat ekspor berkala tampil');
+    put(fDir, 'LP'); put(fEntry, '2000'); put(fSL, '2010'); put(fTP, '2020');
+    V.querySelector('#simpan').click();
+    check(J.loadJurnal().entries.length === 0 && /SL harus di bawah/.test(V.querySelector('#rr').textContent), 'jurnal: SL salah sisi -> tidak tersimpan + pesan');
+    put(fSL, '1990'); put(fTP, '2015');
+    check(/1:1\.5/.test(V.querySelector('#rr').textContent) && V.querySelector('#rr').classList.contains('warn') && /di bawah 1:2/.test(V.querySelector('#rr').textContent), 'jurnal: RR 1:1.5 -> peringatan di bawah 1:2');
+    put(fTP, '2020');
+    check(/1:2/.test(V.querySelector('#rr').textContent) && !V.querySelector('#rr').classList.contains('warn'), 'jurnal: RR 1:2 -> tanpa peringatan');
+    put(fTime, '2026-01-01T10:00'); put(fRes, 'tp'); put(fChk, 'valid'); put(fNote, 'contoh satu');
+    V.querySelector('#simpan').click();
+    check(J.loadJurnal().entries.length === 1 && V.querySelectorAll('article.jr').length === 1, 'jurnal: tambah catatan 1 -> tersimpan + tampil');
+    check(fEntry.value === '' && fRes.value === 'open', 'jurnal: form dikosongkan setelah simpan');
+    put(fTime, '2026-01-02T10:00'); put(fDir, 'SP'); put(fEntry, '2000'); put(fSL, '2010'); put(fTP, '1980'); put(fRes, 'sl'); put(fChk, 'belum');
+    V.querySelector('#simpan').click();
+    var arts = V.querySelectorAll('article.jr');
+    check(arts.length === 2 && /2026-01-02/.test(arts[0].textContent) && /2026-01-01/.test(arts[1].textContent), 'jurnal: terbaru di atas');
+    var stTxt = V.querySelector('#stat').textContent;
+    check(/2 \(2 selesai\)/.test(stTxt) && /50%/.test(stTxt) && /\+1R/.test(stTxt), 'jurnal: statistik 2 setup, win rate 50%, total +1R');
+    check(/VALID \(1 setup\)win 100% · \+2R/.test(stTxt) && /BELUM \(1 setup\)win 0% · -1R/.test(stTxt), 'jurnal: perbandingan VALID vs BELUM tampil');
+    arts[0].querySelector('.jr-edit').click();
+    check(/Edit setup/.test(V.querySelector('#form').textContent) && fEntry.value === '2000' && fDir.value === 'SP', 'jurnal: Edit mengisi form dengan data lama');
+    put(fRes, 'tp'); V.querySelector('#simpan').click();
+    var j2 = J.loadJurnal().entries;
+    check(j2.length === 2 && j2.filter(function (e) { return e.result === 'tp'; }).length === 2 && /\+4R/.test(V.querySelector('#stat').textContent), 'jurnal: edit tersimpan tanpa duplikat, total +4R');
+    w.localStorage.setItem('vytrade.setup', JSON.stringify({ dir: 'sell', checked: {} }));
+    V.querySelector('#dari-setup').click();
+    check(fChk.value === 'belum' && fDir.value === 'SP' && /BELUM/.test(V.querySelector('#chk-hint').textContent), 'jurnal: "Ambil dari tab Setup" -> BELUM + arah SP');
+    var chk = {}; w.SETUP.required.forEach(function (r) { chk[r.id] = true; });
+    w.localStorage.setItem('vytrade.setup', JSON.stringify({ dir: 'buy', checked: chk }));
+    V.querySelector('#dari-setup').click();
+    check(fChk.value === 'valid' && fDir.value === 'LP', 'jurnal: Setup lengkap -> VALID + arah LP');
+    w.confirm = function () { return false; };
+    V.querySelectorAll('article.jr')[1].querySelector('.jr-del').click();
+    check(J.loadJurnal().entries.length === 2, 'jurnal: hapus dibatalkan -> data tetap');
+    w.confirm = function () { return true; };
+    V.querySelectorAll('article.jr')[1].querySelector('.jr-del').click();
+    check(J.loadJurnal().entries.length === 1 && V.querySelectorAll('article.jr').length === 1, 'jurnal: hapus dikonfirmasi -> 1 catatan tersisa');
+    var captured = null, origCreate = w.URL.createObjectURL;
+    w.URL.createObjectURL = function (b) { captured = b; return origCreate.call(w.URL, b); };
+    try { Object.defineProperty(w.navigator, 'canShare', { value: undefined, configurable: true }); } catch (e) {}
+    V.querySelector('#ekspor').click();
+    check(!!captured && /vytrade-cadangan-\d{4}-\d\d-\d\d\.json/.test(V.querySelector('#cad-msg').textContent), 'jurnal: ekspor memicu unduhan vytrade-cadangan-TANGGAL.json');
+    captured.text().then(function (text) {
+      var r = J.validateBackup(text);
+      check(r.ok && r.summary.jurnal === 1, 'jurnal: isi file ekspor valid (1 jurnal)');
+      J.saveJurnal({ v: 1, entries: [] });
+      function pick(t) {
+        var dt = new w.DataTransfer(); dt.items.add(new w.File([t], 'x.json', { type: 'application/json' }));
+        var fi = V.querySelector('#impor-file'); fi.files = dt.files; fi.dispatchEvent(new w.Event('change'));
+      }
+      pick('{rusak');
+      setTimeout(function () {
+        check(/Impor gagal/.test(V.querySelector('#cad-msg').textContent) && !V.querySelector('#impor-ya'), 'jurnal: impor file rusak -> pesan gagal, tanpa tombol timpa');
+        pick(text);
+        setTimeout(function () {
+          check(!!V.querySelector('#impor-ringkas') && /1 catatan jurnal/.test(V.querySelector('#impor-ringkas').textContent) && J.loadJurnal().entries.length === 0, 'jurnal: impor file valid -> ringkasan tampil, data belum ditimpa');
+          V.querySelector('#impor-tidak').click();
+          check(J.loadJurnal().entries.length === 0, 'jurnal: batal impor -> data tidak berubah');
+          pick(text);
+          setTimeout(function () {
+            V.querySelector('#impor-ya').click();
+            check(J.loadJurnal().entries.length === 1 && V.querySelectorAll('article.jr').length === 1 && /Impor selesai/.test(V.querySelector('#cad-msg').textContent), 'jurnal: konfirmasi timpa -> data pulih + daftar diperbarui');
+            next();
+          }, 100);
+        }, 100);
+      }, 100);
+    });
+  }
+
   function step() {
     if (idx >= routes.length) return done();
     var r = routes[idx++];
-    if (/^latihan/.test(r)) pStart();
+    if (/^(latihan|jurnal|setup)/.test(r)) pStart();
+    if (r === 'jurnal') localStorage.removeItem('vytrade.jurnal');
     errs = [];
     f.onload = function () {
       var w = f.contentWindow, d = f.contentDocument;
@@ -209,8 +294,13 @@
             check(/Edukasi, bukan saran keuangan/.test(d.getElementById('view').textContent), 'belajar: disclaimer tampil');
           }
         }
-        check(errs.length === 0, r + ': tidak ada error JS saat dibuka/diklik' + (errs.length ? ' -> ' + errs.join('; ') : ''));
-        setTimeout(step, r === 'setup' ? 1500 : 0);
+        function finish() {
+          setTimeout(function () {
+            check(errs.length === 0, r + ': tidak ada error JS saat dibuka/diklik' + (errs.length ? ' -> ' + errs.join('; ') : ''));
+            setTimeout(step, r === 'setup' ? 1500 : 0);
+          }, r === 'jurnal' ? 50 : 0);
+        }
+        if (r === 'jurnal') jurnalTest(w, d, finish); else finish();
       }, 150);
     };
     f.src = '../index.html?x=' + idx;
