@@ -11,7 +11,10 @@
 <script src="../data/examples/fvg.js"></script>
 <script src="../data/examples/ifvg.js"></script>
 <script src="../data/examples/ob.js"></script>
+<script src="../data/topdown.js"></script>
+<script src="../data/setup.js"></script>
 <script src="../js/chart.js"></script>
+<script src="../js/setup.js"></script>
 <script>
 (function () {
   var lines = [], fail = 0;
@@ -407,6 +410,150 @@
           v.filter(function (e) { return e.valid && /bear/.test(e.id); }).length >= 1, 'ob: ada contoh bullish dan bearish');
     check(v.some(function (e) { return e.valid === false; }), 'ob: ada contoh BELUM VALID');
     check(detectOB(v[1].candles).some(function (x) { return x.i === 18 && x.dir === 'bear'; }), 'ob-bear: terdeteksi sebagai OB bearish');
+  })();
+
+  /* ===== Top-down (Tahap 4): rantai zona antar TF konsisten ===== */
+  var TD_ORDER = ['1d', '4h', '1h', '30m', '15m', '5m', '1m'];
+  ['bull', 'bear'].forEach(function (sc) {
+    var steps = window.TOPDOWN.scenarios[sc].steps, long = sc === 'bull', pre = 'topdown ' + sc;
+    check(steps.map(function (s) { return s.id; }).join() === TD_ORDER.join(), pre + ': urutan TF 1D, 4H, 1H, 30m, 15m, 5m, 1m');
+    var parent = null;
+    steps.forEach(function (s) {
+      var cs = s.candles, id = pre + ' ' + s.label;
+      check(cs.length >= 28 && cs.length <= 40, id + ': jumlah candle ' + cs.length + ' (28-40)');
+      check(candlesOk({ candles: cs }), id + ': semua candle OHLC konsisten');
+      check(s.symbol === 'XAUUSD' && !!s.tf, id + ': label XAUUSD + TF (' + s.tf + ')');
+      check(!/undefined|NaN|<|\{|\[/.test(s.sebab + s.vs + (s.penutup || '')), id + ': teks tidak punya token tersisa');
+      check(s.sebab.split(/[.!?](\s|$)/).filter(function (x) { return x.trim().length > 1; }).length <= 3, id + ': sebab-akibat maksimal 3 kalimat');
+
+      var z = s.zone, ovz = s.overlays.filter(function (o) { return o.type === 'zone' && o.label !== undefined && o.i1 === (z && z.i1); })[0];
+      if (z) {
+        check(!!ovz && near(ovz.top, z.top) && near(ovz.bottom, z.bottom), id + ': zona digambar = zona data (' + z.bottom + '–' + z.top + ')');
+        if (z.kind === 'FVG') {
+          var f = VyChart.detectFVG(cs).filter(function (x) { return x.i1 === z.i1; })[0];
+          check(!!f, id + ': FVG terdeteksi di candle ' + z.i1);
+          if (f) {
+            check(near(f.top, z.top) && near(f.bottom, z.bottom), id + ': zona = hasil deteksi FVG (' + f.bottom + '–' + f.top + ')');
+            check((f.dir === 'bull') === long, id + ': arah FVG ' + f.dir);
+            check(!f.breached, id + ': FVG belum tertembus body close');
+          }
+        } else {
+          var ob = detectOB(cs).filter(function (x) { return x.i === z.i1; })[0];
+          check(!!ob, id + ': OB terdeteksi di candle ' + z.i1);
+          if (ob) {
+            check(near(ob.top, z.top) && near(ob.bottom, z.bottom), id + ': zona = high–low candle OB (' + ob.bottom + '–' + ob.top + ')');
+            check((ob.dir === 'bull') === long, id + ': arah OB ' + ob.dir);
+          }
+          var pierced = cs.some(function (c, k) { return k > z.i1 && (long ? c.c < z.bottom : c.c > z.top); });
+          check(!pierced, id + ': OB belum ditembus body close');
+        }
+        // harga di akhir chart sudah menyentuh zona kerja TF itu
+        var last = cs[cs.length - 1];
+        if (s.id !== '1m') check(last.l <= z.top && last.h >= z.bottom, id + ': candle terakhir menyentuh zonanya');
+      }
+      if (parent) {
+        // konsistensi level: zona TF ini di dalam zona TF sebelumnya
+        if (z) check(z.top <= parent.top + 1e-9 && z.bottom >= parent.bottom - 1e-9,
+          id + ': zona ' + z.bottom + '–' + z.top + ' ada DI DALAM zona TF besar ' + parent.bottom + '–' + parent.top);
+        // zona induk digambar di chart, dan harga pernah menyentuhnya tanpa body close menembus sisi jauh (15 candle terakhir)
+        check(s.overlays.some(function (o) { return o.type === 'zone' && near(o.top, parent.top) && near(o.bottom, parent.bottom); }), id + ': zona TF besar ikut digambar');
+        check(cs.some(function (c) { return c.l <= parent.top && c.h >= parent.bottom; }), id + ': harga menyentuh zona TF besar');
+        check(!cs.slice(-15).some(function (c) { return long ? c.c < parent.bottom : c.c > parent.top; }), id + ': tidak ada body close menembus zona TF besar (15 candle terakhir)');
+      }
+      if (z) parent = z;
+
+      if (s.id === '15m' || s.id === '1m') {
+        var e = detectBreaks(cs).filter(function (x) { return x.j === s.breakAt; })[0];
+        check(!!e && e.levelIdx === s.levelIdx, id + ': tembusan body close terdeteksi di candle ' + s.breakAt + ' (swing ' + s.levelIdx + ')');
+        if (e) {
+          check(e.dir === (long ? 'up' : 'down'), id + ': arah tembusan searah entry');
+          var ln = s.overlays.filter(function (o) { return o.type === 'line'; })[0];
+          check(near(ln.y, e.level) && ln.i1 === e.levelIdx && ln.i2 === e.j, id + ': garis CHoCH digambar di swing ' + e.level);
+          if (s.id === '15m') check(e.kind === 'CHoCH', id + ': jenis = CHoCH (tren 15m sebelumnya turun/naik berlawanan; deteksi: ' + e.kind + ')');
+        }
+      }
+      if (s.id === '15m') {
+        var sw = cs[s.sweepIdx];
+        check(long ? (sw.l < parent.bottom && sw.c > parent.bottom) : (sw.h > parent.top && sw.c < parent.top), id + ': sweep: wick melewati zona/low lalu close kembali');
+      }
+    });
+
+    // 4H: tembusan struktur sebelum OB (dicek bersama jenisnya agar label BOS benar)
+    var s4 = steps[1], b4 = detectBreaks(s4.candles).filter(function (x) { return x.j === s4.breakAt; })[0];
+    var l4 = s4.overlays.filter(function (o) { return o.type === 'line'; })[0];
+    check(!!b4 && b4.levelIdx === s4.levelIdx && l4.i1 === b4.levelIdx && l4.i2 === b4.j && near(b4.level, l4.y) && b4.kind === 'BOS', pre + ' 4H: garis BOS cocok dengan deteksi (' + (b4 ? b4.kind : 'tidak ada') + ')');
+
+    // 1m: entry/SL/TP
+    var m = steps[6], t = m.trade, zz = m.zone;
+    check(near(t.entry, (zz.top + zz.bottom) / 2), pre + ' 1m: entry = 50% OB (' + t.entry + ')');
+    check(long ? t.sl < zz.bottom : t.sl > zz.top, pre + ' 1m: SL di luar sisi jauh OB');
+    check(near(Math.abs(t.tp - t.entry) / Math.abs(t.entry - t.sl), 2), pre + ' 1m: RR 1:2');
+    var rs = outcome(m.candles, { side: long ? 'long' : 'short', i: t.i, sl: t.sl, tp: t.tp });
+    check(rs === 'TP', pre + ' 1m: hasil posisi = ' + rs);
+    var cE = m.candles[t.i];
+    check(cE.l <= t.entry && cE.h >= t.entry, pre + ' 1m: harga menyentuh entry di candle ' + t.i);
+    var pos = m.overlays.filter(function (o) { return o.type === 'position'; })[0];
+    check(pos.side === (long ? 'long' : 'short') && near(pos.entry, t.entry) && near(pos.sl, t.sl) && near(pos.tp, t.tp), pre + ' 1m: kotak ' + (long ? 'LP' : 'SP') + ' = data entry/SL/TP');
+    check(m.overlays.some(function (o) { return o.type === 'zone' && o.label === 'OB'; }) && m.overlays.some(function (o) { return o.type === 'zone' && /FVG/.test(o.label); }), pre + ' 1m: label FVG dan OB ada');
+    check(/Entry .* SL .* TP .* RR 1:2/.test(m.penutup), pre + ' 1m: penutup Entry/SL/TP RR 1:2: ' + m.penutup);
+  });
+  (function () {
+    var b = window.TOPDOWN.scenarios.bull.steps, r = window.TOPDOWN.scenarios.bear.steps;
+    check(b.every(function (s, i) { return s.candles.every(function (c, k) { return near(c.o, 5300 - r[i].candles[k].o) && near(c.c, 5300 - r[i].candles[k].c); }); }), 'topdown: bearish = cermin bullish di semua TF');
+    check(/LP/.test(b[6].sebab) && /SP/.test(r[6].sebab), 'topdown: teks 1m menyebut LP (bullish) dan SP (bearish)');
+  })();
+
+  /* ===== Checklist setup (Tahap 4) ===== */
+  (function () {
+    var VS = window.VySetup, req = window.SETUP.required.map(function (r) { return r.id; }), bon = window.SETUP.bonus.map(function (b) { return b.id; });
+    var all = {}; req.forEach(function (k) { all[k] = true; });
+    check(req.length === 5 && bon.length === 4, 'checklist: 5 syarat wajib dan 4 bonus');
+    var r1 = VS.evaluate('buy', all);
+    check(r1.status === 'VALID' && r1.missing.length === 0, 'checklist: semua wajib terpenuhi (buy) -> VALID');
+    check(VS.evaluate('sell', all).status === 'VALID', 'checklist: semua wajib terpenuhi (sell) -> VALID');
+    req.forEach(function (k) {
+      var c = {}; req.forEach(function (x) { if (x !== k) c[x] = true; });
+      var r = VS.evaluate('buy', c);
+      check(r.status === 'BELUM' && r.missing.length === 1 && r.missing[0].id === k && r.next === r.missing[0].saran, 'checklist: kurang satu (' + k + ') -> BELUM, menyebut syarat yang kurang + saran');
+    });
+    var onlyBonus = {}; bon.forEach(function (k) { onlyBonus[k] = true; });
+    var rb = VS.evaluate('buy', onlyBonus);
+    check(rb.status === 'BELUM' && rb.missing.length === 5 && rb.bonusDone === 4, 'checklist: bonus saja -> BELUM (5 wajib kurang, bonus 4/4)');
+    var rv = VS.evaluate('buy', Object.assign({}, all, onlyBonus));
+    check(rv.status === 'VALID' && rv.bonusDone === 4, 'checklist: wajib + bonus penuh -> VALID, bonus 4/4');
+    check(VS.evaluate('buy', all).bonusDone === 0, 'checklist: VALID tanpa bonus tetap VALID (bonus 0/4)');
+    check(VS.evaluate(null, all).status === 'ARAH' && VS.evaluate(null, {}).status === 'ARAH', 'checklist: tanpa arah -> minta pilih arah');
+    check(VS.evaluate('buy', {}).missing.length === 5, 'checklist: kosong -> 5 syarat kurang');
+  })();
+
+  /* ===== Waktu: hitung mundur + sesi (Intl, ikut DST) ===== */
+  (function () {
+    var VS = window.VySetup, T = Date.UTC;
+    // 12:07:20 UTC
+    var now = T(2026, 0, 15, 12, 7, 20);
+    check(VS.nextClose(now, 15) === T(2026, 0, 15, 12, 15, 0), 'waktu: close M15 berikutnya 12:15:00 UTC');
+    check(VS.nextClose(now, 5) === T(2026, 0, 15, 12, 10, 0), 'waktu: close M5 berikutnya 12:10:00 UTC');
+    check(VS.nextClose(now, 1) === T(2026, 0, 15, 12, 8, 0), 'waktu: close M1 berikutnya 12:08:00 UTC');
+    check(VS.nextClose(T(2026, 0, 15, 12, 15, 0), 15) === T(2026, 0, 15, 12, 30, 0), 'waktu: tepat di close -> candle berikutnya (12:30)');
+    check(VS.nextClose(T(2026, 0, 15, 23, 59, 30), 15) === T(2026, 0, 16, 0, 0, 0), 'waktu: ganti hari');
+    check(VS.fmtCountdown(7 * 60000 + 40000) === '07:40' && VS.fmtCountdown(0) === '00:00', 'waktu: format hitung mundur mm:ss');
+    check(VS.hhmm(VS.nextClose(now, 15), 'Asia/Jakarta') === '19:15', 'waktu: 12:15 UTC = 19:15 WIB');
+    function ses(y, m, d, hh) {
+      var o = {}; VS.sessions(T(y, m - 1, d, hh, 0, 0)).forEach(function (s) { o[s.id] = s; }); return o;
+    }
+    var w = ses(2026, 1, 15, 10);   // musim dingin: London GMT, NY EST
+    check(w.london.wib === '15:00–00:00 WIB', 'sesi dingin: London ' + w.london.wib + ' (harap 15:00–00:00)');
+    check(w.newyork.wib === '20:00–05:00 WIB', 'sesi dingin: New York ' + w.newyork.wib + ' (harap 20:00–05:00)');
+    var s = ses(2026, 7, 15, 16);   // musim panas: London BST, NY EDT
+    check(s.london.wib === '14:00–23:00 WIB', 'sesi panas: London ' + s.london.wib + ' (harap 14:00–23:00)');
+    check(s.newyork.wib === '19:00–04:00 WIB', 'sesi panas: New York ' + s.newyork.wib + ' (harap 19:00–04:00)');
+    var mid = ses(2026, 3, 16, 16); // AS sudah DST, Inggris belum
+    check(mid.london.wib === '15:00–00:00 WIB' && mid.newyork.wib === '19:00–04:00 WIB', 'sesi Maret: London GMT, NY EDT (tidak di-hardcode): ' + mid.london.wib + ' / ' + mid.newyork.wib);
+    check(VS.overlap(T(2026, 0, 15, 16, 0, 0)) === '20:00–00:00 WIB', 'overlap dingin: ' + VS.overlap(T(2026, 0, 15, 16, 0, 0)));
+    check(w.london.state === 'aktif' && w.newyork.state === 'belum', 'sesi: 10:00 UTC Kamis dingin -> London aktif, NY belum buka');
+    check(ses(2026, 1, 15, 16).newyork.state === 'aktif', 'sesi: 16:00 UTC -> New York aktif');
+    check(ses(2026, 1, 15, 23).london.state === 'tutup', 'sesi: 23:00 UTC -> London sudah tutup');
+    check(ses(2026, 1, 17, 12).london.state === 'weekend', 'sesi: Sabtu -> akhir pekan');
   })();
 
   /* ===== Materi: tiap konsep punya contoh dan 4 bagian kartu ===== */

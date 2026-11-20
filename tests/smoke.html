@@ -15,7 +15,10 @@
 (function () {
   var q = new URLSearchParams(location.search);
   var routes = q.get('r') ? [q.get('r')] :
-    ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob', 'latihan', 'setup', 'jurnal'];
+    ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob',
+     'belajar/topdown/bull/1d', 'belajar/topdown/bull/4h', 'belajar/topdown/bull/1h', 'belajar/topdown/bull/30m', 'belajar/topdown/bull/15m', 'belajar/topdown/bull/5m', 'belajar/topdown/bull/1m',
+     'belajar/topdown/bear/1d', 'belajar/topdown/bear/4h', 'belajar/topdown/bear/1h', 'belajar/topdown/bear/30m', 'belajar/topdown/bear/15m', 'belajar/topdown/bear/5m', 'belajar/topdown/bear/1m',
+     'latihan', 'setup', 'jurnal'];
   var keepOn = q.get('ov') === '1';
   var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
   function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
@@ -34,7 +37,7 @@
       w.location.hash = '#/' + r;
       setTimeout(function () {
         var arts = d.querySelectorAll('article.ex'), svgs = d.querySelectorAll('svg.chart');
-        var isBelajarKonsep = /^belajar\/./.test(r);
+        var isTop = /^belajar\/topdown/.test(r), isBelajarKonsep = /^belajar\/./.test(r) && !isTop;
         if (isBelajarKonsep) {
           check(arts.length > 0 && svgs.length === arts.length, r + ': ' + svgs.length + ' chart tampil untuk ' + arts.length + ' contoh');
           // tiap chart punya candle (body+wick), label TF, tulisan Ilustrasi
@@ -58,6 +61,47 @@
           check(okBtn, r + ': tombol zona: mati -> nyala -> mati, overlay ada isinya');
           if (r === 'belajar/ob' || r === 'belajar/fvg') check(/FVG atau OB, pilih yang mana\?/.test(d.getElementById('view').textContent), r + ': bagian "FVG atau OB, pilih yang mana?" tampil');
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN" di halaman');
+        } else if (isTop) {
+          var tf = r.split('/')[3], sc = r.split('/')[2], T = w.TOPDOWN.scenarios[sc].steps;
+          var sv = d.querySelectorAll('svg.chart'), btn = d.querySelector('button.btn'), tds = T.filter(function (x) { return x.id === tf; })[0];
+          check(sv.length === 1 && sv[0].querySelectorAll('rect.body').length === tds.candles.length, r + ': 1 chart, ' + tds.candles.length + ' candle (body+wick)');
+          check(sv[0].querySelectorAll('line.wick').length === tds.candles.length, r + ': wick tiap candle');
+          check(sv[0].textContent.indexOf('XAUUSD · ' + tds.tf) >= 0 && /Ilustrasi/.test(sv[0].textContent), r + ': label "XAUUSD · ' + tds.tf + '" + Ilustrasi');
+          var sk = d.querySelectorAll('.seg-btn'), chips = d.querySelectorAll('.chip');
+          check(sk.length === 2 && chips.length === 7 && d.querySelector('.chip.on').textContent === tds.label, r + ': tombol skenario (2), 7 chip TF, chip aktif ' + tds.label);
+          check(/Dibanding/.test(d.getElementById('view').textContent), r + ': ada baris perbandingan TF');
+          btn.click();
+          var on1 = !sv[0].classList.contains('ov-off');
+          btn.click();
+          check(on1 && sv[0].classList.contains('ov-off'), r + ': tombol zona nyala/mati');
+          if (tf === '1m') {
+            var tx = sv[0].textContent;
+            check(/FVG/.test(tx) && /OB/.test(tx) && (sc === 'bull' ? /LP/.test(tx) : /SP/.test(tx)) && /TP/.test(tx) && /SL/.test(tx) && /Entry/.test(tx), r + ': chart 1m berisi FVG, OB, ' + (sc === 'bull' ? 'LP' : 'SP') + ', Entry, SL, TP');
+            check(/RR 1:2/.test(d.getElementById('view').textContent), r + ': penutup RR 1:2');
+          }
+          check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN"');
+        } else if (r === 'setup') {
+          var V = d.getElementById('view'), cbs = V.querySelectorAll('input[type=checkbox]');
+          check(cbs.length === 9 && !/Segera hadir/.test(V.textContent), 'setup: 5 wajib + 4 bonus, tidak lagi "Segera hadir"');
+          check(/PILIH ARAH/.test(V.querySelector('.status').textContent), 'setup: awal = PILIH ARAH');
+          var seg = V.querySelectorAll('.seg-btn'); seg[0].click();
+          check(/BELUM/.test(V.querySelector('.status').textContent) && V.querySelectorAll('.missing li').length === 5, 'setup: pilih Buy -> BELUM, 5 syarat kurang');
+          for (var q = 0; q < 5; q++) { cbs[q].checked = true; cbs[q].dispatchEvent(new w.Event('change')); }
+          check(/VALID/.test(V.querySelector('.status').textContent) && !V.querySelector('.missing'), 'setup: 5 wajib dicentang -> VALID');
+          cbs[2].checked = false; cbs[2].dispatchEvent(new w.Event('change'));
+          check(/BELUM/.test(V.querySelector('.status').textContent) && /CHoCH atau BOS/.test(V.querySelector('.missing').textContent), 'setup: satu dilepas -> BELUM + menyebut syarat konfirmasi');
+          seg[1].click();
+          check(/premium/.test(V.textContent), 'setup: arah Sell -> bonus menyebut premium');
+          var cd0 = V.querySelector('.cd').textContent;
+          check(/^\d\d:\d\d$/.test(cd0) && V.querySelectorAll('.cd').length === 3, 'setup: 3 hitung mundur (M15/M5/M1), format mm:ss = ' + cd0);
+          check(/London/.test(V.textContent) && /New York/.test(V.textContent) && /WIB/.test(V.textContent), 'setup: sesi London + New York dalam WIB');
+          d.getElementById('reset').click();
+          check(/PILIH ARAH/.test(V.querySelector('.status').textContent) && Array.prototype.every.call(cbs, function (c) { return !c.checked; }), 'setup: Reset mengosongkan arah dan centang');
+          // hitung mundur jalan tiap detik
+          setTimeout(function () {
+            var cd1 = V.querySelector('.cd').textContent;
+            check(cd1 !== cd0 || V.querySelectorAll('.cd')[2].textContent !== '--:--', 'setup: hitung mundur berjalan (' + cd0 + ' -> ' + cd1 + ')');
+          }, 1200);
         } else {
           check(d.getElementById('view').textContent.length > 20, r + ': halaman terisi');
           if (r === 'belajar') {
@@ -68,7 +112,7 @@
           }
         }
         check(errs.length === 0, r + ': tidak ada error JS saat dibuka/diklik' + (errs.length ? ' -> ' + errs.join('; ') : ''));
-        step();
+        setTimeout(step, r === 'setup' ? 1500 : 0);
       }, 150);
     };
     f.src = '../index.html?x=' + idx;
