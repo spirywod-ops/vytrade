@@ -127,3 +127,38 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
 .pill.on { background: var(--ok); border-color: var(--ok); color: #fff; }
 #reset { margin: 14px 0 4px; }
+
+/* Latihan: kuis, flashcard, glosarium */
+.mt { display: block; font-weight: 700; }
+.md { display: block; font-weight: 400; }
+.qtext { font-size: 17px; font-weight: 600; margin: 4px 0 12px; }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt {
+  min-height: 48px; padding: 8px 14px; text-align: left; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--ink); font: inherit; font-size: 15px; cursor: pointer;
+}
+.opt:disabled { cursor: default; color: var(--ink); opacity: 1; }
+.opt.right { border-color: var(--ok); background: rgba(31, 157, 85, .16); }
+.opt.wrong { border-color: var(--bad); background: rgba(224, 72, 72, .16); }
+.feedback { margin-top: 12px; }
+.fb-ok { border-color: var(--ok); } .fb-bad { border-color: var(--bad); }
+.fb-title { font-weight: 800; margin: 0 0 2px; }
+.fb-ok .fb-title { color: var(--ok); } .fb-bad .fb-title { color: var(--bad); }
+.score { font-size: 44px; font-weight: 800; margin: 0; }
+.gap { margin-top: 8px; }
+.chart-box.tap { cursor: crosshair; touch-action: manipulation; }
+.btn.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+.flash {
+  display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; width: 100%;
+  min-height: 220px; padding: 20px 16px; margin-bottom: 12px; text-align: center; cursor: pointer;
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; font: inherit;
+}
+.flash-main { font-size: 26px; font-weight: 800; }
+.flash-arti { font-size: 17px; font-weight: 600; }
+.flash-syarat { color: var(--muted); }
+.search {
+  width: 100%; min-height: 48px; padding: 8px 14px; margin-bottom: 12px; font: inherit; font-size: 16px;
+  color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+}
+.gl h3 { margin-top: 0; }
+.gl-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }

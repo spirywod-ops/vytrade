@@ -90,10 +90,12 @@
 
     // zona (di belakang candle)
     var gz = el('g', { 'class': 'ov' }, svg);
+    var zoneRects = [];
     ovs.forEach(function (o) {
       if (o.type !== 'zone') return;
       var col = COLORS[o.kind] || COLORS.OFF;
       var x1 = x(o.i1) - step / 2, x2 = Math.min(W - PAD.r, x(o.i2) + step / 2);
+      zoneRects.push({ kind: o.kind, x1: x1, x2: x2, y1: y(o.top), y2: y(o.bottom) });
       el('rect', {
         x: x1, y: y(o.top), width: x2 - x1, height: Math.max(1, y(o.bottom) - y(o.top)),
         fill: col, 'fill-opacity': 0.2, stroke: col, 'stroke-width': 1, 'stroke-dasharray': '3 2'
@@ -164,7 +166,27 @@
     return {
       svg: svg,
       setOverlay: function (on) { svg.classList.toggle('ov-off', !on); },
-      isOverlayOn: function () { return !svg.classList.contains('ov-off'); }
+      isOverlayOn: function () { return !svg.classList.contains('ov-off'); },
+      // Ketuk-zona (kuis): ubah koordinat layar ke koordinat SVG, cek apakah kena zona `kind` (toleransi `tol` px SVG), beri tanda.
+      toSvg: function (cx, cy) {
+        var r = svg.getBoundingClientRect();
+        return { x: (cx - r.left) * W / r.width, y: (cy - r.top) * H / r.height };
+      },
+      hitZone: function (pt, kind, tol) {
+        tol = tol || 0;
+        return zoneRects.some(function (z) {
+          return (!kind || z.kind === kind) && pt.x >= z.x1 - tol && pt.x <= z.x2 + tol &&
+                 pt.y >= Math.min(z.y1, z.y2) - tol && pt.y <= Math.max(z.y1, z.y2) + tol;
+        });
+      },
+      zoneCenter: function (kind) {
+        var z = zoneRects.filter(function (q) { return !kind || q.kind === kind; })[0];
+        return z ? { x: (z.x1 + z.x2) / 2, y: (z.y1 + z.y2) / 2 } : null;
+      },
+      mark: function (pt, ok) {
+        var c = el('circle', { cx: pt.x, cy: pt.y, r: 6, fill: 'none', stroke: ok ? COLORS.TP : COLORS.SL, 'stroke-width': 2.5, 'class': 'tap-mark' }, svg);
+        return c;
+      }
     };
   }
 

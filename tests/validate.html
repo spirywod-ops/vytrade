@@ -13,8 +13,12 @@
 <script src="../data/examples/ob.js"></script>
 <script src="../data/topdown.js"></script>
 <script src="../data/setup.js"></script>
+<script src="../data/quiz.js"></script>
+<script src="../data/flashcards.js"></script>
+<script src="../data/glossary.js"></script>
 <script src="../js/chart.js"></script>
 <script src="../js/setup.js"></script>
+<script src="../js/latihan.js"></script>
 <script>
 (function () {
   var lines = [], fail = 0;
@@ -567,6 +571,104 @@
           v.filter(function (e) { return e.valid !== false && /bear/.test(e.id); }).length >= 1, k + ': ada contoh bullish dan bearish');
   });
   check(window.EXAMPLES.choch.some(function (e) { return e.valid === false; }), 'choch: ada contoh BELUM VALID');
+
+
+  /* ===== Latihan (Tahap 5): kuis, flashcard, glosarium ===== */
+  (function () {
+    var Q = window.QUIZ, CATS = window.QUIZ_CATS, VL = window.VyLatihan;
+    var tags = {}; window.CONCEPTS.forEach(function (c) { tags[c.id] = true; });
+    tags.topdown = true; tags.checklist = true; // halaman top-down dan checklist setup
+    var catIds = CATS.map(function (c) { return c.id; });
+
+    var ids = {}, dup = [];
+    Q.forEach(function (q) { if (ids[q.id]) dup.push(q.id); ids[q.id] = true; });
+    check(dup.length === 0, 'kuis: id soal tidak ganda' + (dup.length ? ' -> ' + dup.join(',') : ''));
+
+    CATS.forEach(function (c) {
+      var n = Q.filter(function (q) { return q.cat === c.id; }).length;
+      check(n >= 6, 'kuis ' + c.id + ': ' + n + ' soal (minimal 6)');
+    });
+    check(['mc', 'tf', 'zone'].every(function (t) { return Q.some(function (q) { return q.type === t; }); }), 'kuis: ada tipe pilihan ganda, benar/salah, dan tebak zona');
+
+    function sentences(t) { return (t.match(/[.!?](\s|$)/g) || []).length; }
+    var CONFIRM = /^(bos|choch|bos-vs-choch|fvg|ifvg|ob|candlestick)$/;
+    Q.forEach(function (q) {
+      var p = 'soal ' + q.id + ': ';
+      check(catIds.indexOf(q.cat) >= 0, p + 'kategori ada (' + q.cat + ')');
+      check(tags[q.tag] === true, p + 'tag konsep "' + q.tag + '" ada di data materi');
+      check(typeof q.q === 'string' && q.q.length > 5, p + 'teks soal ada');
+      check(typeof q.expl === 'string' && q.expl.length > 10 && sentences(q.expl) >= 1 && sentences(q.expl) <= 2, p + 'penjelasan 1–2 kalimat (' + sentences(q.expl || '') + ')');
+      var correctText = '';
+      if (q.type === 'mc') {
+        check(Array.isArray(q.options) && q.options.length >= 3 && q.options.length <= 5, p + 'pilihan ganda punya 3–5 opsi');
+        check(Number.isInteger(q.answer) && q.answer >= 0 && q.answer < q.options.length, p + 'kunci jawaban valid (indeks ' + q.answer + ')');
+        check(new Set(q.options).size === q.options.length, p + 'opsi tidak kembar');
+        correctText = q.options[q.answer] || '';
+      } else if (q.type === 'tf') {
+        check(q.answer === true || q.answer === false, p + 'kunci benar/salah valid');
+        correctText = q.answer === true ? q.q : '';
+      } else if (q.type === 'zone') {
+        check(q.zoneKind === 'FVG' || q.zoneKind === 'OB', p + 'zoneKind FVG/OB');
+        check(!!q.zone && typeof q.zone.top === 'number' && typeof q.zone.bottom === 'number' && q.zone.top > q.zone.bottom, p + 'zona punya top > bottom');
+      } else check(false, p + 'tipe soal dikenal (' + q.type + ')');
+      // Definisi baku: konfirmasi = body close. Jawaban benar yang menyebut wick harus menyebut sweep/bukan/tidak/ditolak.
+      if (CONFIRM.test(q.tag) && /wick/i.test(correctText)) {
+        check(/sweep|bukan|tidak|ditolak|saja|panjang/i.test(correctText + ' ' + q.expl), p + 'jawaban benar yang menyebut wick tetap sesuai definisi (body close)');
+      }
+      if (q.type === 'tf' && q.answer === true && /wick/i.test(q.q) && /(tembus|menembus|konfirmasi|CHoCH|BOS)/i.test(q.q)) {
+        check(false, p + 'pernyataan BENAR tidak boleh menyebut wick sebagai tembusan/konfirmasi');
+      }
+    });
+
+    // Tebak zona: zona di soal = zona di data contoh, dan sesuai deteksi baku (FVG) / deteksi OB.
+    Q.filter(function (q) { return q.type === 'zone'; }).forEach(function (q) {
+      var p = 'soal ' + q.id + ': ', ex = null;
+      Object.keys(window.EXAMPLES).forEach(function (k) { window.EXAMPLES[k].forEach(function (e) { if (e.id === q.ex) ex = e; }); });
+      check(!!ex && ex.valid === true, p + 'contoh "' + q.ex + '" ada dan valid');
+      if (!ex) return;
+      var z = ex.overlays.filter(function (o) { return o.type === 'zone' && o.kind === q.zoneKind; })[0];
+      check(!!z, p + 'contoh punya zona ' + q.zoneKind);
+      if (!z) return;
+      check(Math.abs(z.top - q.zone.top) < 0.005 && Math.abs(z.bottom - q.zone.bottom) < 0.005, p + 'area tebak (' + q.zone.bottom + '–' + q.zone.top + ') = zona data contoh (' + z.bottom + '–' + z.top + ')');
+      if (q.zoneKind === 'FVG') {
+        var f = window.VyChart.detectFVG(ex.candles).filter(function (d) { return Math.abs(d.top - z.top) < 0.005 && Math.abs(d.bottom - z.bottom) < 0.005; })[0];
+        check(!!f && Math.abs(f.top - q.zone.top) < 0.005 && Math.abs(f.bottom - q.zone.bottom) < 0.005 && !f.breached, p + 'zona cocok dengan deteksi FVG baku (belum tertembus)');
+      } else {
+        var o = detectOB(ex.candles).filter(function (d) { return d.i === z.i1; })[0];
+        check(!!o && Math.abs(o.top - q.zone.top) < 0.005 && Math.abs(o.bottom - q.zone.bottom) < 0.005, p + 'zona cocok dengan deteksi OB baku');
+      }
+    });
+
+    // Flashcard: satu kartu per konsep
+    var F = window.FLASHCARDS, fid = {};
+    F.forEach(function (c) { fid[c.id] = (fid[c.id] || 0) + 1; check(tags[c.id] === true && !!c.depan && !!c.arti && !!c.syarat, 'kartu ' + c.id + ': konsep ada, punya depan/arti/syarat'); });
+    check(Object.keys(fid).every(function (k) { return fid[k] === 1; }), 'flashcard: satu kartu per konsep (tidak ganda)');
+    window.CONCEPTS.forEach(function (c) { check(fid[c.id] === 1, 'flashcard: konsep ' + c.id + ' punya kartu'); });
+
+    // Glosarium
+    var G = window.GLOSSARY, gt = {};
+    G.forEach(function (g) {
+      gt[g.t] = (gt[g.t] || 0) + 1;
+      check(!!g.t && sentences(g.arti) >= 1 && sentences(g.arti) <= 2, 'glosarium ' + g.t + ': arti 1–2 kalimat (' + sentences(g.arti) + ')');
+      if (g.link) check(tags[g.link] === true, 'glosarium ' + g.t + ': tautan materi "' + g.link + '" ada');
+    });
+    check(Object.keys(gt).every(function (k) { return gt[k] === 1; }), 'glosarium: istilah tidak ganda');
+    ['Candlestick', 'HH', 'HL', 'LH', 'LL', 'BOS', 'CHoCH', 'FVG', 'IFVG', 'OB', 'Liquidity sweep', 'Premium', 'Discount', 'SMT', 'TF', 'RR', 'SL', 'TP', 'LP', 'SP'].forEach(function (k) {
+      check(G.some(function (g) { return g.t.indexOf(k) === 0; }), 'glosarium: istilah "' + k + '" ada');
+    });
+    check(VL.searchGlossary('fvg').length >= 2 && VL.searchGlossary('zzzzqq').length === 0 && VL.searchGlossary('').length === G.length, 'glosarium: pencarian (fvg, tanpa hasil, kosong)');
+
+    // Logika progres + acak opsi
+    var prog = { best: {}, hafal: {} };
+    check(VL.recordBest(prog, 'dasar', 5, 7) === true && VL.recordBest(prog, 'dasar', 4, 7) === false && prog.best.dasar.score === 5 && VL.recordBest(prog, 'dasar', 7, 7) === true, 'progres: skor terbaik hanya naik');
+    check(Q.filter(function (q) { return q.type === 'mc'; }).every(function (q) {
+      for (var t = 0; t < 5; t++) {
+        var o = VL.prepare(q), ok = o.filter(function (x) { return x.correct; });
+        if (o.length !== q.options.length || ok.length !== 1 || ok[0].text !== q.options[q.answer]) return false;
+      }
+      return true;
+    }), 'kuis: acak opsi tetap menyisakan satu jawaban benar sesuai kunci');
+  })();
 
   lines.push(fail ? ('TOTAL GAGAL: ' + fail) : 'SEMUA LOLOS');
   document.getElementById('out').textContent = lines.join('\n');

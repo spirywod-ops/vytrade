@@ -283,12 +283,14 @@
     return root;
   }
 
+  var latihan = window.VyLatihan.build(h);
+
   function route() {
     if (cleanup) { cleanup(); cleanup = null; }
     var parts = (location.hash || '#/belajar').replace(/^#\/?/, '').split('/');
     var tab = parts[0] || 'belajar', node;
     if (tab === 'belajar') node = parts[1] === 'topdown' ? viewTopdown(parts[2], parts[3]) : parts[1] ? viewKonsep(parts[1]) : viewBelajar();
-    else if (tab === 'latihan') node = comingSoon('Latihan', 'Kuis pilihan ganda, benar/salah, dan tebak zona di chart.');
+    else if (tab === 'latihan') node = latihan.route(parts);
     else if (tab === 'setup') node = viewSetup();
     else if (tab === 'jurnal') node = comingSoon('Jurnal', 'Catat setup dan hasil, plus ekspor/impor cadangan JSON.');
     else { location.replace('#/belajar'); return; }

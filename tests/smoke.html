@@ -18,18 +18,114 @@
     ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob',
      'belajar/topdown/bull/1d', 'belajar/topdown/bull/4h', 'belajar/topdown/bull/1h', 'belajar/topdown/bull/30m', 'belajar/topdown/bull/15m', 'belajar/topdown/bull/5m', 'belajar/topdown/bull/1m',
      'belajar/topdown/bear/1d', 'belajar/topdown/bear/4h', 'belajar/topdown/bear/1h', 'belajar/topdown/bear/30m', 'belajar/topdown/bear/15m', 'belajar/topdown/bear/5m', 'belajar/topdown/bear/1m',
-     'latihan', 'setup', 'jurnal'];
+     'latihan', 'latihan/kuis', 'latihan/kuis/dasar', 'latihan/kuis/struktur', 'latihan/kuis/zona', 'latihan/kuis/topdown', 'latihan/kuis/checklist',
+     'latihan/flashcard', 'latihan/glosarium', 'setup', 'jurnal'];
   var keepOn = q.get('ov') === '1';
   var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
   function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
   function done() {
+    pRestore();
     lines.push(fail ? 'TOTAL GAGAL: ' + fail : 'SEMUA LOLOS');
     document.getElementById('out').textContent = lines.join('\n');
+  }
+
+  /* ===== Tab Latihan (Tahap 5) ===== */
+  var PKEY = 'vytrade.progress', pBackup = null, pSaved = false;
+  function pStart() { if (pSaved) return; pSaved = true; try { pBackup = localStorage.getItem(PKEY); localStorage.removeItem(PKEY); } catch (e) {} }
+  function pRestore() { if (!pSaved) return; try { if (pBackup === null) localStorage.removeItem(PKEY); else localStorage.setItem(PKEY, pBackup); } catch (e) {} }
+
+  function svgToClient(svg, sx, sy) {
+    var r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+    return { x: r.left + sx * r.width / vb.width, y: r.top + sy * r.height / vb.height };
+  }
+
+  function latihanTest(r, w, d) {
+    var V = d.getElementById('view'), cats = w.QUIZ_CATS;
+    function ev(type, x, y) { return new w.MouseEvent(type, { bubbles: true, clientX: x, clientY: y }); }
+    check(!/undefined|NaN/.test(V.innerHTML) && !/Segera hadir/.test(V.textContent), r + ': terisi, tanpa "undefined"/"NaN"/"Segera hadir"');
+
+    if (r === 'latihan') {
+      var menu = V.querySelectorAll('a.card.link');
+      check(menu.length === 3 && /Kuis/.test(menu[0].textContent) && /Flashcard/.test(menu[1].textContent) && /Glosarium/.test(menu[2].textContent), 'latihan: tiga menu (Kuis, Flashcard, Glosarium)');
+      check(V.querySelectorAll('#progres .row').length === cats.length + 1 && /Belum dicoba/.test(V.textContent) && /0\/\d+ hafal/.test(V.textContent), 'latihan: ringkasan progres (5 kategori + flashcard) di atas menu');
+    } else if (r === 'latihan/kuis') {
+      var cl = V.querySelectorAll('a.card.link');
+      check(cl.length === cats.length, 'kuis: ' + cl.length + ' kategori tampil');
+    } else if (/^latihan\/kuis\//.test(r)) {
+      var cat = r.split('/')[2], total = w.VyLatihan.questionsOf(cat).length, score = 0, n = 0, wrongSeen = false, rightSeen = false, zoneTried = 0;
+      var guard = 0;
+      while (guard++ < 40) {
+        var qt = V.querySelector('.qtext'); if (!qt) break;
+        var q = w.QUIZ.filter(function (x) { return x.q === qt.textContent && x.cat === cat; })[0];
+        if (!q) { check(false, r + ': soal "' + qt.textContent + '" ada di data'); break; }
+        n++;
+        var wantRight = n % 2 === 1, got;
+        if (q.type === 'zone') {
+          var svg = V.querySelector('svg.chart');
+          check(svg.classList.contains('ov-off'), r + ' ' + q.id + ': chart awalnya tanpa overlay');
+          // tombol "Segera hadir"/zona tidak boleh bocor; cari kotak zona dari data contoh untuk simulasi ketukan
+          var ex = null; Object.keys(w.EXAMPLES).forEach(function (k) { w.EXAMPLES[k].forEach(function (e) { if (e.id === q.ex) ex = e; }); });
+          var zr = svg.querySelector('g.ov rect');
+          var zx = +zr.getAttribute('x'), zy = +zr.getAttribute('y'), zw = +zr.getAttribute('width'), zh = +zr.getAttribute('height');
+          var pt = wantRight ? svgToClient(svg, zx + zw / 2, zy + zh / 2) : svgToClient(svg, 12, 236);
+          var box = V.querySelector('.chart-box.tap');
+          box.dispatchEvent(ev('click', pt.x, pt.y));
+          check(!svg.classList.contains('ov-off') && svg.querySelectorAll('.tap-mark').length === 1, r + ' ' + q.id + ': setelah ketuk, zona benar ditampilkan + tanda ketukan');
+          zoneTried++;
+          got = wantRight;
+        } else {
+          var btns = V.querySelectorAll('.opt'), pick = null;
+          Array.prototype.forEach.call(btns, function (b) { if ((b.getAttribute('data-ok') === '1') === wantRight && !pick) pick = b; });
+          pick.click(); got = wantRight;
+        }
+        var fb = V.querySelector('.feedback');
+        check(fb.textContent.indexOf(q.expl) >= 0 && fb.textContent.indexOf(got ? 'Benar' : 'Belum tepat') >= 0, r + ' ' + q.id + ': jawab ' + (got ? 'benar' : 'salah') + ' -> penjelasan tampil');
+        if (got) { score++; rightSeen = true; } else wrongSeen = true;
+        var nx = V.querySelector('#next'); nx.click();
+      }
+      check(n === total, r + ': ' + n + ' dari ' + total + ' soal dimainkan');
+      check(rightSeen && wrongSeen, r + ': jawaban benar dan salah sama-sama diuji');
+      if (cat === 'zona') check(zoneTried >= 2, 'kuis zona: soal tebak zona diuji (' + zoneTried + ')');
+      var sk = V.querySelector('#skor');
+      check(!!sk && sk.textContent === score + '/' + total, r + ': skor akhir ' + (sk && sk.textContent) + ' (harap ' + score + '/' + total + ')');
+      var best = w.VyLatihan.load().best[cat];
+      check(!!best && best.score === score && best.total === total, r + ': skor terbaik tersimpan di localStorage');
+    } else if (r === 'latihan/flashcard') {
+      var total2 = w.FLASHCARDS.length, card = V.querySelector('#flash-card'), acts = V.querySelector('.pager');
+      check(!!card && acts.hasAttribute('hidden'), 'flashcard: kartu depan tampil, tombol belum muncul');
+      var front = card.querySelector('.flash-main').textContent;
+      card.click();
+      check(/Syarat valid/.test(card.textContent) && !acts.hasAttribute('hidden'), 'flashcard: ketuk -> arti + syarat valid, tombol muncul');
+      V.querySelector('#flash-lagi').click();
+      check(new RegExp('Sisa ' + total2 + ' kartu').test(V.textContent), 'flashcard: "Ulangi" -> kartu tetap di antrean (sisa ' + total2 + ')');
+      var seen = {}, loops = 0;
+      while (V.querySelector('#flash-card') && loops++ < 40) {
+        var c2 = V.querySelector('#flash-card'); seen[c2.querySelector('.flash-main').textContent] = true;
+        c2.click(); V.querySelector('#flash-hafal').click();
+      }
+      check(Object.keys(seen).length === total2 && /Semua kartu sudah hafal/.test(V.textContent), 'flashcard: "Sudah hafal" semua kartu -> selesai (' + Object.keys(seen).length + '/' + total2 + ' kartu terlihat)');
+      var hf = Object.keys(w.VyLatihan.load().hafal).length;
+      check(hf === total2, 'flashcard: ' + hf + ' kartu hafal tersimpan');
+      V.querySelector('#flash-ulang').click();
+      check(!!V.querySelector('#flash-card') && Object.keys(w.VyLatihan.load().hafal).length === 0, 'flashcard: "Ulangi semua kartu" mengosongkan hafal');
+    } else if (r === 'latihan/glosarium') {
+      var inp = V.querySelector('#gl-cari'), all = V.querySelectorAll('.gl').length;
+      check(all === w.GLOSSARY.length, 'glosarium: ' + all + ' istilah tampil');
+      inp.value = 'fvg'; inp.dispatchEvent(new w.Event('input'));
+      var f = V.querySelectorAll('.gl');
+      check(f.length >= 2 && f.length < all && Array.prototype.some.call(f, function (e) { return /FVG \(Fair/.test(e.textContent); }), 'glosarium: cari "fvg" -> ' + f.length + ' hasil');
+      check(Array.prototype.some.call(V.querySelectorAll('.gl-link'), function (a) { return /#\/belajar\/fvg$/.test(a.getAttribute('href')); }), 'glosarium: tautan ke kartu materi FVG');
+      inp.value = 'zzzzqq'; inp.dispatchEvent(new w.Event('input'));
+      check(V.querySelectorAll('.gl').length === 0 && /Tidak ada istilah/.test(V.textContent), 'glosarium: tanpa hasil -> pesan kosong');
+      inp.value = ''; inp.dispatchEvent(new w.Event('input'));
+      check(V.querySelectorAll('.gl').length === all, 'glosarium: kosongkan pencarian -> semua istilah kembali');
+    }
   }
 
   function step() {
     if (idx >= routes.length) return done();
     var r = routes[idx++];
+    if (/^latihan/.test(r)) pStart();
     errs = [];
     f.onload = function () {
       var w = f.contentWindow, d = f.contentDocument;
@@ -80,6 +176,8 @@
             check(/RR 1:2/.test(d.getElementById('view').textContent), r + ': penutup RR 1:2');
           }
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN"');
+        } else if (/^latihan/.test(r)) {
+          latihanTest(r, w, d);
         } else if (r === 'setup') {
           var V = d.getElementById('view'), cbs = V.querySelectorAll('input[type=checkbox]');
           check(cbs.length === 9 && !/Segera hadir/.test(V.textContent), 'setup: 5 wajib + 4 bonus, tidak lagi "Segera hadir"');
