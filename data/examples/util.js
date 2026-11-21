@@ -29,5 +29,22 @@
   ];
   function head(tail) { return walk(HEAD_START, HEAD.concat(tail)); }
 
-  window.VyData = { walk: walk, mirror: mirror, mp: mp, r2: r2, head: head };
+  // mirrorOv(overlays): cermin overlay (harga 5300 - harga) untuk pasangan bearish dari contoh bullish.
+  // Zona: top/bottom bertukar. Posisi: long <-> short. pos above <-> below. dy teks: di atas -> di bawah (dan sebaliknya).
+  // Yang tidak otomatis (label seperti HL/LH): tulis ulang lewat parameter `edit(overlayBaru, overlayAsli)`.
+  function mirrorOv(ovs, edit) {
+    return ovs.map(function (o) {
+      var n = {}, k;
+      for (k in o) n[k] = o[k];
+      ['y', 'y1', 'y2', 'entry', 'sl', 'tp'].forEach(function (f) { if (typeof o[f] === 'number') n[f] = mp(o[f]); });
+      if (o.type === 'zone') { n.top = mp(o.bottom); n.bottom = mp(o.top); }
+      if (o.side) n.side = o.side === 'long' ? 'short' : 'long';
+      if (o.pos) n.pos = o.pos === 'above' ? 'below' : 'above';
+      if (typeof o.dy === 'number' && o.dy !== 0) n.dy = o.dy < 0 ? 11 : -4;
+      if (edit) edit(n, o);
+      return n;
+    });
+  }
+
+  window.VyData = { walk: walk, mirror: mirror, mirrorOv: mirrorOv, mp: mp, r2: r2, head: head };
 })();

@@ -3,6 +3,7 @@
 <body>
 <pre id="out">menjalankan...</pre>
 <script src="../data/concepts.js"></script>
+<script src="../data/levels.js"></script>
 <script src="../data/examples/util.js"></script>
 <script src="../data/examples/candlestick.js"></script>
 <script src="../data/examples/swing.js"></script>
@@ -18,12 +19,20 @@
 <script src="../data/examples/liquidity.js"></script>
 <script src="../data/examples/premdisc.js"></script>
 <script src="../data/examples/smt.js"></script>
+<script src="../data/examples/hammer.js"></script>
+<script src="../data/examples/engulfing.js"></script>
+<script src="../data/examples/doji.js"></script>
+<script src="../data/examples/expansion.js"></script>
+<script src="../data/examples/consolidation.js"></script>
+<script src="../data/examples/reversal.js"></script>
+<script src="../data/examples/breaker.js"></script>
 <script src="../data/topdown.js"></script>
 <script src="../data/setup.js"></script>
 <script src="../data/quiz.js"></script>
 <script src="../data/flashcards.js"></script>
 <script src="../data/glossary.js"></script>
 <script src="../js/chart.js"></script>
+<script src="../js/progres.js"></script>
 <script src="../js/setup.js"></script>
 <script src="../js/latihan.js"></script>
 <script src="../js/jurnal.js"></script>
@@ -1195,6 +1204,459 @@
     var c = fake(); J.applyBackup(J.validateBackup(JSON.stringify(J.buildBackup(fake({ 'vytrade.jurnal': JSON.stringify({ v: 1, entries: list }) })))).backup, c);
     check(c.getItem('vytrade.progress') === null && J.loadJurnal(c).entries.length === 7, 'impor: bagian yang kosong di file menghapus data lama (progres)');
     check(J.loadJurnal(fake({ 'vytrade.jurnal': '{bukan json' })).entries.length === 0 && J.loadJurnal(fake({ 'vytrade.jurnal': '{"v":7,"entries":[]}' })).entries.length === 0, 'jurnal: data lokal rusak/versi asing -> daftar kosong, tidak error');
+  })();
+
+  /* ===== Tahap 8: Peta belajar, Level 1 (hammer, engulfing, doji) dan Level 2 baru (ekspansi, konsolidasi, reversal, breaker) ===== */
+  (function () {
+    var EX = window.EXAMPLES;
+    function r2(v) { return Math.round(v * 100) / 100; }
+    function rr(p) { return Math.abs(p.tp - p.entry) / Math.abs(p.entry - p.sl); }
+    function body(c) { return Math.abs(c.c - c.o); }
+    function rng(c) { return c.h - c.l; }
+    function uw(c) { return c.h - Math.max(c.o, c.c); }
+    function lw(c) { return Math.min(c.o, c.c) - c.l; }
+    function firstTouch(cs, from, price) { for (var k = from; k < cs.length; k++) if (cs[k].l <= price && cs[k].h >= price) return k; return -1; }
+    function lineOf(ex, label) { return ex.overlays.filter(function (o) { return o.type === 'line' && o.label === label; })[0]; }
+
+    /* ---------- Detektor pola candle (definisi baku CLAUDE.md) ---------- */
+    // Hammer: body kecil di atas, lower wick >= 2x body, upper wick sangat kecil (<= 0.25x body). Bukan doji (body > 10% range).
+    function isHammer(c) { var b = body(c); return rng(c) > 0 && b > 0.1 * rng(c) && lw(c) >= 2 * b && uw(c) <= 0.25 * b; }
+    function isShooting(c) { var b = body(c); return rng(c) > 0 && b > 0.1 * rng(c) && uw(c) >= 2 * b && lw(c) <= 0.25 * b; }
+    // Engulfing: body candle kedua menutupi SELURUH body candle pertama, arah berlawanan. Hasil 'bull' | 'bear' | null.
+    function engulf(a, b) {
+      if (a.c < a.o && b.c > b.o && b.o <= a.c && b.c >= a.o && body(b) > body(a)) return 'bull';
+      if (a.c > a.o && b.c < b.o && b.o >= a.c && b.c <= a.o && body(b) > body(a)) return 'bear';
+      return null;
+    }
+    // Inside bar: seluruh range di dalam range mother bar.
+    function isInside(mother, c) { return c.h < mother.h && c.l > mother.l; }
+    // Candle pertama setelah inside bar yang keluar dari mother bar. Body close di luar = breakout (arah mengikuti body close); wick saja = 'wick'.
+    function insideExit(cs, mi) {
+      var M = cs[mi];
+      for (var k = mi + 2; k < cs.length; k++) {
+        var c = cs[k];
+        if (c.c > M.h) return { k: k, type: 'breakout', dir: 'up' };
+        if (c.c < M.l) return { k: k, type: 'breakout', dir: 'down' };
+        if (c.h > M.h) return { k: k, type: 'wick', dir: 'up' };
+        if (c.l < M.l) return { k: k, type: 'wick', dir: 'down' };
+      }
+      return null;
+    }
+    // Doji: body sangat kecil (<= 10% range). Marubozu: body hampir penuh (>= 90% range, wick total <= 10%).
+    function isDoji(c) { return rng(c) > 0 && body(c) <= 0.1 * rng(c); }
+    function isMaru(c) { return rng(c) > 0 && body(c) >= 0.9 * rng(c); }
+    // Ekspansi (displacement): range >= 1,5x rata-rata range 10 candle sebelumnya, body besar (>= 60% range), close dekat ekstrem (<= 25% range).
+    function avgRange(cs, i) { var s = 0, n = 0; for (var k = Math.max(0, i - 10); k < i; k++) { s += rng(cs[k]); n++; } return s / n; }
+    function expInfo(cs, i) {
+      var c = cs[i], up = c.c >= c.o, ratio = rng(c) / avgRange(cs, i);
+      var near = up ? (c.h - c.c) <= 0.25 * rng(c) : (c.c - c.l) <= 0.25 * rng(c);
+      var big = body(c) >= 0.6 * rng(c);
+      return { dir: up ? 'up' : 'down', ratio: ratio, near: near, big: big, ok: i >= 10 && ratio >= 1.5 && big && near };
+    }
+    // Konsolidasi: >= 8 candle, rata-rata range candle <= 50% tinggi range, >= 2 high di dekat batas atas dan >= 2 low di dekat batas bawah (likuiditas).
+    function consInfo(cs, from, to) {
+      var top = -Infinity, bot = Infinity, sum = 0, n = to - from + 1, k;
+      for (k = from; k <= to; k++) { top = Math.max(top, cs[k].h); bot = Math.min(bot, cs[k].l); sum += rng(cs[k]); }
+      var h = top - bot, tt = 0, tb = 0;
+      for (k = from; k <= to; k++) { if (cs[k].h >= top - 0.15 * h) tt++; if (cs[k].l <= bot + 0.15 * h) tb++; }
+      return { top: top, bottom: bot, height: h, avg: sum / n, n: n, touchTop: tt, touchBot: tb, ok: n >= 8 && sum / n <= 0.5 * h && tt >= 2 && tb >= 2 };
+    }
+    // Candle pertama yang keluar dari range: breakout (body close di luar DAN candle berikutnya masih close di luar sisi yang sama),
+    // fakeout (wick keluar, close kembali ke dalam), atau 'gagal' (body close di luar tetapi candle berikutnya kembali ke dalam).
+    function consExit(cs, to, top, bot) {
+      for (var k = to + 1; k < cs.length; k++) {
+        var c = cs[k], nx = cs[k + 1];
+        if (c.h <= top && c.l >= bot) continue;
+        var beyondUp = c.c > top, beyondDn = c.c < bot;
+        if (beyondUp || beyondDn) {
+          var hold = nx && (beyondUp ? nx.c > top : nx.c < bot);
+          return { k: k, type: hold ? 'breakout' : 'gagal', dir: beyondUp ? 'up' : 'down' };
+        }
+        return { k: k, type: 'fakeout', dir: c.h > top ? 'up' : 'down' };
+      }
+      return null;
+    }
+    // Breaker: OB yang ditembus body close berlawanan (bull OB: close < bottom; bear OB: close > top), zona berbalik peran.
+    function detectBreaker(cs) {
+      var out = [];
+      detectOB(cs).forEach(function (o) {
+        for (var k = o.j + 1; k < cs.length; k++) {
+          var c = cs[k].c;
+          if (o.dir === 'bull' ? c < o.bottom : c > o.top) { out.push({ ob: o.i, k: k, dir: o.dir === 'bull' ? 'bear' : 'bull', top: o.top, bottom: o.bottom, closeBeyond: true }); break; }
+        }
+      });
+      return out;
+    }
+    // Konteks sebuah candle: sweep (wick melewati low/high terekstrem 20 candle sebelumnya, yaitu swing/equal low-high terluar, lalu close kembali ke dalam)
+    // dan zona hidup (FVG/OB searah) yang bersinggungan dengan candle itu.
+    function sweepAt(cs, i, dir) {
+      var p = dir === 'bull' ? Infinity : -Infinity;
+      for (var k = Math.max(0, i - 20); k < i; k++) p = dir === 'bull' ? Math.min(p, cs[k].l) : Math.max(p, cs[k].h);
+      return dir === 'bull' ? (cs[i].l < p && cs[i].c > p) : (cs[i].h > p && cs[i].c < p);
+    }
+    function zoneAt(cs, i, dir) {
+      var c = cs[i], hit = false;
+      function overlap(top, bot) { return c.l <= top && c.h >= bot; }
+      VyChart.detectFVG(cs).forEach(function (f) {
+        if (f.dir === dir && f.i3 < i && (!f.breached || f.breachIndex >= i) && overlap(f.top, f.bottom)) hit = true;
+      });
+      detectOB(cs).forEach(function (o) {
+        if (o.dir !== dir || o.j >= i) return;
+        for (var k = o.j + 1; k < i; k++) if (o.dir === 'bull' ? cs[k].c < o.bottom : cs[k].c > o.top) return;
+        if (overlap(o.top, o.bottom)) hit = true;
+      });
+      return hit;
+    }
+
+    /* ---------- Uji detektor dengan candle sintetis (batas aturan) ---------- */
+    (function () {
+      function C(o, h, l, c) { return { o: o, h: h, l: l, c: c }; }
+      check(isHammer(C(10, 11.2, 4.9, 11)) && !isHammer(C(10, 12, 4.9, 11)), 'detektor hammer: lower wick besar + upper wick kecil = hammer; upper wick besar = bukan');
+      check(!isHammer(C(10, 11.2, 9, 11)) && !isHammer(C(10, 10.05, 5, 10.02)), 'detektor hammer: lower wick kurang dari 2x body ditolak; body hampir nol (doji) ditolak');
+      check(isShooting(C(11, 16.5, 9.9, 10)) && !isShooting(C(10, 11.2, 4.9, 11)), 'detektor shooting star: kebalikan hammer');
+      check(engulf(C(10, 10.2, 8.8, 9), C(9, 11.2, 8.9, 11)) === 'bull' && engulf(C(9, 11.2, 8.9, 11), C(11, 11.1, 8.4, 8.5)) === 'bear', 'detektor engulfing: bullish dan bearish terdeteksi');
+      check(engulf(C(10, 10.2, 8.8, 9), C(9, 10.2, 8.9, 9.8)) === null && engulf(C(10, 11, 9, 9.5), C(9.2, 10.5, 9, 9.9)) === null, 'detektor engulfing: body kedua tidak menutupi seluruh body pertama ditolak');
+      check(engulf(C(10, 10.2, 8.8, 9), C(9, 11.2, 8.9, 11)) === 'bull' && engulf(C(10, 11, 9, 9.5), C(9.4, 12, 9, 11)) === 'bull', 'detektor engulfing: wick tidak dihitung, hanya body');
+      check(isInside(C(10, 14, 6, 12), C(11, 13, 7, 12)) && !isInside(C(10, 14, 6, 12), C(11, 14.5, 7, 12)) && !isInside(C(10, 14, 6, 12), C(11, 13, 5.5, 12)), 'detektor inside bar: seluruh range harus di dalam mother bar');
+      var ins = [C(10, 14, 6, 12), C(11, 13, 7, 12), C(12, 15, 11, 14.5), C(14.5, 16, 14, 15)], insW = [C(10, 14, 6, 12), C(11, 13, 7, 12), C(12, 15, 11, 13), C(13, 13.5, 8, 9)];
+      check(insideExit(ins, 0).type === 'breakout' && insideExit(ins, 0).dir === 'up' && insideExit(insW, 0).type === 'wick', 'detektor inside bar: body close di luar = breakout (arah ikut body close), wick saja = bukan breakout');
+      check(isDoji(C(10, 11, 9, 10.1)) && !isDoji(C(10, 11, 9, 10.5)) && isMaru(C(10, 15.1, 9.9, 15)) && !isMaru(C(10, 15.1, 9.9, 14)) && !isMaru(C(10, 17, 9.9, 15)), 'detektor doji dan marubozu: ambang 10% range');
+      check(!isDoji(C(10, 15.1, 9.9, 15)) && !isMaru(C(10, 11, 9, 10.1)), 'detektor: doji dan marubozu saling lepas');
+      // ekspansi: 10 candle range 4, lalu candle range 6.0 (tepat 1,5x) vs 5.9
+      var base = []; for (var q = 0; q < 10; q++) base.push(C(100, 102, 98, 100));
+      var e1 = base.concat([C(100, 106, 100, 105.8)]), e2 = base.concat([C(100, 105.9, 100, 105.7)]), e3 = base.concat([C(100, 106, 100, 102)]);
+      check(expInfo(e1, 10).ok && !expInfo(e2, 10).ok, 'detektor ekspansi: range tepat 1,5x rata-rata 10 candle lolos, di bawahnya ditolak');
+      check(!expInfo(e3, 10).ok && !expInfo(e3, 10).near && !expInfo(e3, 10).big, 'detektor ekspansi: range besar tetapi close jauh dari ekstrem dan body kecil ditolak');
+      // konsolidasi + breakout/fakeout
+      var cc = []; for (q = 0; q < 10; q++) cc.push(q % 2 ? C(105, 108, 104, 107) : C(103, 104, 100, 101));
+      var ci = consInfo(cc, 0, 9);
+      check(ci.ok && ci.top === 108 && ci.bottom === 100, 'detektor konsolidasi: range 100–108 dengan tepi tersentuh berulang dikenali');
+      var brk = cc.concat([C(105, 112, 104, 111), C(111, 113, 110, 112)]), fk = cc.concat([C(105, 111, 104, 106), C(106, 107, 102, 103)]), failb = cc.concat([C(105, 112, 104, 111), C(111, 112, 104, 105)]);
+      check(consExit(brk, 9, 108, 100).type === 'breakout' && consExit(fk, 9, 108, 100).type === 'fakeout' && consExit(failb, 9, 108, 100).type === 'gagal', 'detektor konsolidasi: breakout (body close + bertahan), fakeout (wick, close kembali), gagal (tidak bertahan)');
+      var big = []; for (q = 0; q < 10; q++) big.push(C(100, 130, 70, 100));
+      check(!consInfo(big, 0, 9).ok && !consInfo(cc.slice(0, 5), 0, 4).ok, 'detektor konsolidasi: candle besar (bukan sideways) atau terlalu sedikit candle ditolak');
+    })();
+
+    /* ---------- Pemeriksaan umum contoh ---------- */
+    function common(ex, p) {
+      var cs = ex.candles, pos = posOf(ex);
+      check(candlesOk(ex), p + 'semua candle OHLC konsisten');
+      check(ex.symbol === 'XAUUSD' && ex.tf === 'M15', p + 'label ' + ex.symbol + ' · ' + ex.tf);
+      check(typeof ex.note === 'string' && ex.note.length > 40 && !/undefined|NaN/.test(ex.note), p + 'catatan terisi tanpa token tersisa');
+      check(!!pos && ex.overlays.some(function (o) { return o.type === 'arrow' && o.label === 'Entry'; }), p + 'ada panah Entry dan kotak posisi ' + (pos && (pos.side === 'long' ? 'LP' : 'SP')));
+      check(near(rr(pos), 2), p + 'RR = 1:' + r2(rr(pos)));
+      check(pos.side === 'long' ? (pos.sl < pos.entry && pos.tp > pos.entry) : (pos.sl > pos.entry && pos.tp < pos.entry), p + 'SL/TP di sisi yang benar untuk ' + pos.side);
+      check(cs[pos.i].l <= pos.entry && cs[pos.i].h >= pos.entry, p + 'harga menyentuh entry di candle ke-' + pos.i);
+      check(pos.i2 < cs.length, p + 'kotak posisi tidak melewati data candle');
+      var res = outcome(cs, pos);
+      check(res === (ex.valid ? 'TP' : 'SL'), p + 'hasil posisi = ' + res + ' (harapan: ' + (ex.valid ? 'TP' : 'SL') + ')');
+      return pos;
+    }
+    // Zona di gambar = zona deteksi; entry 50%; SL di luar sisi jauh; zona hidup sampai entry. kind: 'FVG' | 'OB'.
+    function zoneChecks(ex, pos, p) {
+      var cs = ex.candles, z = ex.overlays.filter(function (o) { return o.type === 'zone' && (o.kind === 'FVG' || o.kind === 'OB' || o.kind === 'BB'); })[0], long = pos.side === 'long';
+      check(!!z, p + 'ada zona FVG/OB/Breaker di overlay');
+      if (!z) return null;
+      check(near(pos.entry, r2((z.top + z.bottom) / 2)), p + 'entry = 50% zona (' + r2((z.top + z.bottom) / 2) + ')');
+      check(long ? pos.sl < z.bottom : pos.sl > z.top, p + 'SL di luar sisi jauh zona');
+      var pierced = false;
+      for (var q = z.i1 + 3; q <= pos.i; q++) if (long ? cs[q].c < z.bottom : cs[q].c > z.top) pierced = true;
+      check(!pierced, p + 'zona belum ditembus body close berlawanan sampai entry');
+      if (z.kind === 'FVG') {
+        var d = VyChart.detectFVG(cs).filter(function (f) { return f.i1 === z.i1; })[0];
+        check(!!d && near(d.top, z.top) && near(d.bottom, z.bottom), p + 'zona gambar = zona deteksi FVG');
+        check(!!d && (d.dir === 'bull') === long && d.i3 < pos.i, p + 'arah FVG sesuai posisi dan selesai terbentuk sebelum entry');
+      }
+      return z;
+    }
+    function chochAt(ex, pos, p, j, dir) {
+      var ln = lineOf(ex, 'CHoCH'), ev = detectBreaks(ex.candles).filter(function (e) { return e.j === j && e.dir === dir && e.kind === 'CHoCH'; })[0];
+      check(!!ln && ln.i2 === j, p + 'garis CHoCH berakhir di candle ' + j);
+      check(!!ev && ln && near(ev.level, ln.y) && ev.levelIdx === ln.i1, p + 'deteksi: CHoCH ' + dir + ' body close di candle ' + j + ', level = swing (' + (ln && ln.y) + ')');
+      check(ex.candles[j].c !== undefined && (dir === 'up' ? ex.candles[j].c > ln.y : ex.candles[j].c < ln.y), p + 'candle CHoCH punya BODY CLOSE melewati level');
+      return ev;
+    }
+    function bullbear(k, ids) {
+      var v = EX[k];
+      check(v.filter(function (e) { return e.valid === true && /bull/.test(e.id); }).length >= 1 && v.filter(function (e) { return e.valid === true && /bear/.test(e.id); }).length >= 1, k + ': ada contoh valid bullish dan bearish');
+      check(v.filter(function (e) { return e.valid === true; }).length >= 2 && v.filter(function (e) { return e.valid === false; }).length >= 1, k + ': minimal 2 contoh valid + 1 contoh BELUM VALID');
+      check(ids.join() === v.map(function (e) { return e.id; }).join(), k + ': urutan contoh ' + v.map(function (e) { return e.id; }).join(','));
+    }
+
+    /* ---------- Hammer & shooting star ---------- */
+    bullbear('hammer', ['hammer-bull', 'hammer-bear', 'hammer-bad']);
+    EX.hammer.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, pat = ex.meta.pat, c = cs[pat], pos = common(ex, p), long = pos.side === 'long';
+      if (ex.valid) {
+        check(ex.meta.kind === 'hammer' ? isHammer(c) : isShooting(c), p + 'candle ' + pat + ' = ' + (ex.meta.kind === 'hammer' ? 'hammer' : 'shooting star') + ' (body ' + r2(body(c)) + ', wick utama ' + r2(Math.max(lw(c), uw(c))) + ', wick lain ' + r2(Math.min(lw(c), uw(c))) + ')');
+        check((ex.meta.kind === 'hammer') === long, p + 'hammer -> LP, shooting star -> SP');
+        var dir = long ? 'bull' : 'bear', z = zoneChecks(ex, pos, p);
+        check(zoneAt(cs, pat, dir), p + 'pola berada di dalam OB ' + dir + ' yang masih hidup');
+        check(sweepAt(cs, pat, dir), p + 'wick pola menyapu ' + (long ? 'low' : 'high') + ' terekstrem lalu close kembali (sweep)');
+        var o = detectOB(cs).filter(function (x) { return x.i === z.i1; })[0];
+        check(!!o && o.dir === dir && near(o.top, z.top) && near(o.bottom, z.bottom), p + 'zona gambar = zona deteksi OB');
+        check(long ? pos.sl < c.l : pos.sl > c.h, p + 'SL di luar ' + (long ? 'low' : 'high') + ' sweep (ujung wick)');
+        check(pos.i > pat && firstTouch(cs, pat + 1, pos.entry) === pos.i, p + 'entry SETELAH candle pola close, saat retest pertama ke 50% (candle ' + pos.i + ')');
+        check(ex.overlays.some(function (x) { return x.type === 'mark' && x.i === pat && /Hammer|Shooting star/.test(x.label); }), p + 'label pola di candle ' + pat);
+      } else {
+        check(isHammer(c), p + 'bentuknya hammer (candle ' + pat + ')');
+        check(!zoneAt(cs, pat, 'bull'), p + 'TIDAK ada FVG/OB bullish hidup di sekitar pola');
+        check(!sweepAt(cs, pat, 'bull'), p + 'wick pola TIDAK menyapu low terekstrem sebelumnya (bukan sweep)');
+        check(pos.i > pat, p + 'entry setelah pola, tetapi tanpa konteks -> kena SL');
+      }
+    });
+
+    /* ---------- Engulfing & inside bar ---------- */
+    bullbear('engulfing', ['engulf-bull', 'engulf-bear', 'inside-bull', 'inside-bear', 'engulf-bad', 'inside-bad']);
+    EX.engulfing.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, pat = ex.meta.pat, pos = common(ex, p), long = pos.side === 'long';
+      if (/^engulf/.test(ex.id)) {
+        check(engulf(cs[pat - 1], cs[pat]) === ex.meta.kind.replace('engulf-', ''), p + 'candle ' + (pat - 1) + '→' + pat + ' = engulfing ' + ex.meta.kind.replace('engulf-', '') + ': body ' + r2(Math.min(cs[pat].o, cs[pat].c)) + '–' + r2(Math.max(cs[pat].o, cs[pat].c)) + ' menutupi body ' + r2(Math.min(cs[pat - 1].o, cs[pat - 1].c)) + '–' + r2(Math.max(cs[pat - 1].o, cs[pat - 1].c)));
+        check(ex.overlays.some(function (x) { return x.type === 'mark' && x.i === pat && /Engulfing/.test(x.label); }), p + 'label pola di candle ' + pat);
+        if (ex.valid) {
+          var dir = long ? 'bull' : 'bear', z = zoneChecks(ex, pos, p);
+          check(zoneAt(cs, pat, dir), p + 'engulfing berada di dalam FVG ' + dir + ' yang masih hidup');
+          check((ex.meta.kind === 'engulf-bull') === long, p + 'bullish engulfing -> LP, bearish engulfing -> SP');
+          chochAt(ex, pos, p, 19, long ? 'up' : 'down');
+          check(pos.i > pat && firstTouch(cs, pat + 1, pos.entry) === pos.i, p + 'entry SETELAH candle engulfing close, saat retest pertama ke 50% (candle ' + pos.i + ')');
+        } else {
+          check(!zoneAt(cs, pat, 'bull') && !sweepAt(cs, pat, 'bull'), p + 'TIDAK ada FVG/OB bullish hidup dan bukan sweep (tempat salah)');
+          check(pos.i > pat, p + 'entry setelah pola');
+        }
+      } else {
+        var mi = ex.meta.mother, ex2 = insideExit(cs, mi);
+        check(pat === mi + 1 && isInside(cs[mi], cs[pat]), p + 'candle ' + pat + ' seluruhnya di dalam mother bar candle ' + mi + ' (' + r2(cs[mi].l) + '–' + r2(cs[mi].h) + ')');
+        check(ex.overlays.some(function (x) { return x.type === 'mark' && x.i === pat && /Inside bar/.test(x.label); }) && ex.overlays.some(function (x) { return x.type === 'text' && x.i === mi && /Mother/.test(x.text); }), p + 'label Inside bar dan Mother di chart');
+        if (ex.valid) {
+          check(!!ex2 && ex2.type === 'breakout' && ex2.dir === (long ? 'up' : 'down'), p + 'breakout = body close di luar mother bar (candle ' + (ex2 && ex2.k) + ', arah ' + (ex2 && ex2.dir) + ') searah posisi');
+          check(ex2 && (long ? cs[ex2.k].c > cs[mi].h : cs[ex2.k].c < cs[mi].l), p + 'candle breakout punya BODY CLOSE di luar mother bar');
+          var z2 = zoneChecks(ex, pos, p);
+          check(!!z2 && z2.i1 === pat, p + 'inside bar adalah candle 1 dari FVG');
+          chochAt(ex, pos, p, ex2.k, long ? 'up' : 'down');
+          check(pos.i > ex2.k && firstTouch(cs, ex2.k + 1, pos.entry) === pos.i, p + 'entry SETELAH breakout close, saat retest pertama ke 50% FVG (candle ' + pos.i + ')');
+        } else {
+          check(!!ex2 && ex2.type === 'wick', p + 'candle ' + (ex2 && ex2.k) + ' hanya wick keluar dari mother bar, body close di dalam (bukan breakout)');
+          check(near(pos.entry, cs[mi].h), p + 'entry di batas mother bar (anggap breakout) -> kena SL');
+        }
+      }
+    });
+
+    /* ---------- Doji & marubozu ---------- */
+    bullbear('doji', ['doji-bull', 'doji-bear', 'doji-bad']);
+    EX.doji.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, dj = ex.meta.doji, mr = ex.meta.maru, pos = common(ex, p), long = pos.side === 'long';
+      check(isDoji(cs[dj]) && !isMaru(cs[dj]), p + 'candle ' + dj + ' = doji (body ' + r2(body(cs[dj])) + ' dari range ' + r2(rng(cs[dj])) + ')');
+      check(isMaru(cs[mr]) && !isDoji(cs[mr]), p + 'candle ' + mr + ' = marubozu (body ' + r2(body(cs[mr])) + ' dari range ' + r2(rng(cs[mr])) + ')');
+      check((cs[mr].c > cs[mr].o) === (ex.meta.maruDir === 'up'), p + 'arah marubozu = ' + ex.meta.maruDir);
+      check(ex.overlays.some(function (x) { return x.type === 'mark' && x.i === dj && /Doji/.test(x.label); }) && ex.overlays.some(function (x) { return x.type === 'text' && x.i === mr && /Marubozu/.test(x.text); }), p + 'label Doji dan Marubozu di chart');
+      if (ex.valid) {
+        var dir = long ? 'bull' : 'bear', z = zoneChecks(ex, pos, p);
+        check(ex.meta.maruDir === (long ? 'up' : 'down'), p + 'marubozu searah posisi');
+        check(sweepAt(cs, dj, dir), p + 'doji menyapu ' + (long ? 'low' : 'high') + ' terekstrem lalu close kembali (sweep)');
+        check(expInfo(cs, mr).ok, p + 'marubozu juga ekspansi (range ' + r2(expInfo(cs, mr).ratio) + 'x rata-rata)');
+        check(!!z && z.i1 === dj && z.i1 + 1 === mr, p + 'doji = candle 1 dan marubozu = candle tengah FVG');
+        chochAt(ex, pos, p, mr, long ? 'up' : 'down');
+        check(pos.i > mr && firstTouch(cs, mr + 1, pos.entry) === pos.i, p + 'entry SETELAH marubozu close, saat retest pertama ke 50% FVG (candle ' + pos.i + ')');
+      } else {
+        check(!zoneAt(cs, dj, 'bull') && !sweepAt(cs, dj, 'bull'), p + 'TIDAK ada FVG/OB bullish hidup dan bukan sweep (tempat salah)');
+        check(ex.meta.maruDir === 'down' && long && mr === dj + 1 && pos.i === mr, p + 'LP dibuka sesudah doji, lalu marubozu TURUN melawan posisi');
+      }
+    });
+
+    /* ---------- Candle expansion ---------- */
+    bullbear('expansion', ['exp-bull', 'exp-bear', 'exp-bad']);
+    EX.expansion.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, pos = common(ex, p), long = pos.side === 'long';
+      if (ex.valid) {
+        ex.meta.exp.forEach(function (i) {
+          var e = expInfo(cs, i);
+          check(e.ok && e.dir === (long ? 'up' : 'down'), p + 'candle ' + i + ' ekspansi ' + e.dir + ': range ' + r2(e.ratio) + 'x rata-rata 10 candle sebelumnya, body besar, close dekat ekstrem');
+        });
+        var last = ex.meta.exp[ex.meta.exp.length - 1], z = zoneChecks(ex, pos, p);
+        check(!!z && z.kind === 'FVG' && z.i1 + 2 >= last && z.i1 + 1 <= last, p + 'FVG tertinggal oleh candle ekspansi (candle 1 = ' + (z && z.i1) + ')');
+        chochAt(ex, pos, p, last, long ? 'up' : 'down');
+        check(ex.overlays.some(function (x) { return x.type === 'text' && /Ekspansi/.test(x.text); }), p + 'label Ekspansi di chart');
+        check(pos.i > last && firstTouch(cs, last + 1, pos.entry) === pos.i, p + 'entry SETELAH ekspansi, saat retest pertama ke 50% FVG (candle ' + pos.i + ')');
+      } else {
+        var sp = ex.meta.spike, e2 = expInfo(cs, sp);
+        check(e2.ratio >= 1.5, p + 'candle ' + sp + ' memang besar (range ' + r2(e2.ratio) + 'x rata-rata)');
+        check(!e2.ok && !e2.near && !e2.big, p + 'tetapi BUKAN ekspansi: close tidak dekat ekstrem, body kecil (' + r2(body(cs[sp]) / rng(cs[sp]) * 100) + '% range)');
+        check(!VyChart.detectFVG(cs).some(function (f) { return f.i1 + 1 === sp; }), p + 'tidak meninggalkan FVG');
+        check(!detectBreaks(cs).some(function (b) { return b.j >= sp && b.j <= sp + 1; }), p + 'tidak menembus struktur (tidak ada BOS/CHoCH)');
+      }
+    });
+
+    /* ---------- Consolidation ---------- */
+    bullbear('consolidation', ['cons-bull', 'cons-bear', 'cons-bad']);
+    EX.consolidation.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long';
+      var ci = consInfo(cs, mt.from, mt.to), rz = ex.overlays.filter(function (o) { return o.type === 'zone' && o.label === 'Range'; })[0];
+      check(ci.ok, p + 'candle ' + mt.from + '–' + mt.to + ' = konsolidasi: ' + ci.n + ' candle, rata-rata range ' + r2(ci.avg) + ' vs tinggi range ' + r2(ci.height) + ', tepi atas disentuh ' + ci.touchTop + 'x, tepi bawah ' + ci.touchBot + 'x');
+      check(!!rz && near(rz.top, ci.top) && near(rz.bottom, ci.bottom), p + 'kotak Range di chart = batas range hasil hitung (' + r2(ci.bottom) + '–' + r2(ci.top) + ')');
+      var ex2 = consExit(cs, mt.to, ci.top, ci.bottom);
+      check(!!ex2 && ex2.k === mt.exit && ex2.type === mt.kind && ex2.dir === mt.dir, p + 'candle ' + mt.exit + ' = ' + (ex2 && ex2.type) + ' ' + (ex2 && ex2.dir) + ' (harapan: ' + mt.kind + ' ' + mt.dir + ')');
+      if (ex.valid) {
+        check(ex2.dir === (long ? 'up' : 'down'), p + 'breakout searah posisi');
+        check(long ? cs[ex2.k].c > ci.top && cs[ex2.k + 1].c > ci.top : cs[ex2.k].c < ci.bottom && cs[ex2.k + 1].c < ci.bottom, p + 'body close di luar range dan candle berikutnya bertahan di luar');
+        var z = zoneChecks(ex, pos, p);
+        check(!!z && z.kind === 'FVG' && z.i1 + 1 === ex2.k, p + 'candle breakout adalah candle tengah FVG');
+        check(pos.i > ex2.k + 1 && firstTouch(cs, ex2.k + 2, pos.entry) === pos.i, p + 'entry SETELAH breakout bertahan, saat retest pertama ke 50% FVG (candle ' + pos.i + ')');
+      } else {
+        check(cs[ex2.k].h > ci.top && cs[ex2.k].c <= ci.top && cs[ex2.k].c >= ci.bottom, p + 'wick melewati batas atas ' + r2(ci.top) + ' (high ' + r2(cs[ex2.k].h) + ') tetapi close ' + r2(cs[ex2.k].c) + ' kembali di dalam');
+        check(pos.entry > ci.top && pos.i === ex2.k, p + 'LP dibuka di luar range (' + pos.entry + ') pada candle fakeout');
+        check(ex.overlays.some(function (x) { return x.type === 'mark' && /Fakeout/.test(x.label); }), p + 'label Fakeout di chart');
+      }
+    });
+
+    /* ---------- Reversal vs continuation ---------- */
+    bullbear('reversal', ['rev-bull', 'rev-bear', 'cont-bear', 'cont-bull', 'rev-bad']);
+    EX.reversal.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long', ev = detectBreaks(cs);
+      var bk = ev.filter(function (e) { return e.j === mt.break; })[0], cf = ev.filter(function (e) { return e.j === mt.confirm; })[0];
+      if (ex.valid && mt.kind === 'reversal') {
+        var z = zoneChecks(ex, pos, p), dir = long ? 'up' : 'down';
+        check(!!bk && bk.kind === 'CHoCH' && bk.dir === dir && bk.trend === (long ? 'down' : 'up'), p + 'candle ' + mt.break + ' = CHoCH ' + dir + ' melawan tren sebelumnya (' + (bk && bk.trend) + ')');
+        chochAt(ex, pos, p, mt.break, dir);
+        check(!!cf && cf.kind === 'BOS' && cf.dir === dir && cf.trend === dir, p + 'candle ' + mt.confirm + ' = BOS ' + dir + ' searah tren baru (konfirmasi reversal)');
+        check(!!z && z.kind === 'FVG' && z.i1 + 1 === mt.break, p + 'FVG tertinggal oleh candle CHoCH');
+        check(pos.i > mt.break && pos.i < mt.confirm && firstTouch(cs, mt.break + 1, pos.entry) === pos.i, p + 'entry di retest FVG (candle ' + pos.i + ') setelah CHoCH dan sebelum BOS konfirmasi');
+        check(ex.overlays.some(function (x) { return x.type === 'line' && x.label === 'BOS' && x.i2 === mt.confirm; }), p + 'garis BOS konfirmasi di candle ' + mt.confirm);
+      } else if (ex.valid) {
+        var z3 = zoneChecks(ex, pos, p), d2 = long ? 'up' : 'down';
+        check(!!bk && bk.kind === 'BOS' && bk.dir === d2 && bk.trend === d2, p + 'candle ' + mt.break + ' = BOS ' + d2 + ' searah tren (' + (bk && bk.trend) + ')');
+        var o = detectOB(cs).filter(function (x) { return x.i === z3.i1; })[0];
+        check(!!o && o.dir === (long ? 'bull' : 'bear') && near(o.top, z3.top) && near(o.bottom, z3.bottom) && o.j === mt.break, p + 'zona = OB ' + (o && o.dir) + ' yang lahir dari BOS candle ' + mt.break);
+        check(!!cf && cf.kind === 'BOS' && cf.dir === d2, p + 'candle ' + mt.confirm + ' = BOS ' + d2 + ' lagi, tren lanjut');
+        check(!ev.some(function (e) { return e.kind === 'CHoCH' && e.j > mt.break; }), p + 'tidak ada CHoCH setelah BOS (tren tidak berbalik)');
+        check(pos.i > mt.break && pos.i < mt.confirm && firstTouch(cs, mt.break + 1, pos.entry) === pos.i, p + 'entry di pullback pertama ke 50% OB (candle ' + pos.i + ') sebelum BOS lanjutan (candle ' + mt.confirm + ')');
+        check(long === (d2 === 'up'), p + 'posisi searah tren');
+      } else {
+        check(!ev.some(function (e) { return e.kind === 'CHoCH' && e.dir === 'up'; }), p + 'tidak ada CHoCH naik di seluruh data (tidak ada body close menembus swing high)');
+        var trend = (function () {
+          var sw = detectSwings(cs).filter(function (s) { return s.i + K < pos.i; });
+          return trendOf(sw.filter(function (s) { return s.type === 'H'; }), sw.filter(function (s) { return s.type === 'L'; }));
+        })();
+        check(trend === 'down' && long, p + 'tren saat entry = ' + trend + ', tetapi posisi LP (melawan tren)');
+        check(!zoneAt(cs, pos.i, 'bull'), p + 'entry TIDAK di FVG/OB bullish hidup');
+        var maxClose = -Infinity; for (var k = mt.break + 1; k < cs.length; k++) maxClose = Math.max(maxClose, cs[k].c);
+        var swH = detectOB(cs).filter(function (x) { return x.j === mt.break; })[0];
+        check(!!swH && maxClose < swH.top, p + 'close tertinggi sesudah BOS (' + r2(maxClose) + ') di bawah swing high ' + (swH && swH.top) + ': belum ada tembusan ke atas');
+      }
+    });
+
+    /* ---------- Breaker block ---------- */
+    bullbear('breaker', ['bb-bull', 'bb-bear', 'bb-bad']);
+    EX.breaker.forEach(function (ex) {
+      var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long';
+      var z = ex.overlays.filter(function (o) { return o.type === 'zone'; })[0];
+      var obs = detectOB(cs).filter(function (o) { return o.i === mt.ob; })[0], brs = detectBreaker(cs).filter(function (b) { return b.ob === mt.ob; })[0];
+      check(!!obs && near(obs.top, z.top) && near(obs.bottom, z.bottom), p + 'zona gambar = zona deteksi OB (candle ' + mt.ob + ', ' + r2(z.bottom) + '–' + r2(z.top) + ')');
+      if (ex.valid) {
+        check(!!brs && brs.k === mt.breakAt && brs.dir === (long ? 'bull' : 'bear') && brs.closeBeyond, p + 'OB ' + (obs && obs.dir) + ' ditembus body close di candle ' + mt.breakAt + ' -> breaker ' + (brs && brs.dir));
+        check(!!obs && obs.dir === (long ? 'bear' : 'bull'), p + 'OB asal berlawanan dengan posisi (peran zona berbalik)');
+        check(long ? cs[mt.breakAt].c > z.top : cs[mt.breakAt].c < z.bottom, p + 'candle penembus punya BODY CLOSE melewati sisi jauh OB');
+        var early = false; for (var k = obs.j + 1; k < mt.breakAt; k++) if (long ? cs[k].c > z.top : cs[k].c < z.bottom) early = true;
+        check(!early, p + 'tidak ada body close menembus lebih awal');
+        check(sweepAt(cs, mt.sweep, long ? 'bull' : 'bear'), p + 'candle ' + mt.sweep + ' = sweep ' + (long ? 'low' : 'high') + ' sebelum breaker');
+        var chv = chochAt(ex, pos, p, mt.breakAt, long ? 'up' : 'down');
+        check(!!chv && near(chv.level, long ? z.top : z.bottom), p + 'level CHoCH = sisi jauh OB (' + (long ? z.top : z.bottom) + '), candle yang sama dengan penembus zona');
+        check(z.kind === 'BB' && z.label === 'Breaker', p + 'zona berlabel Breaker');
+        check(ex.overlays.some(function (x) { return x.type === 'text' && /^OB (bearish|bullish)$/.test(x.text); }), p + 'label OB asal di chart');
+        var back = false; for (var q = mt.breakAt + 1; q <= pos.i; q++) if (long ? cs[q].c < z.bottom : cs[q].c > z.top) back = true;
+        check(!back, p + 'zona belum ditembus balik sampai entry');
+        check(near(pos.entry, r2((z.top + z.bottom) / 2)) && (long ? pos.sl < z.bottom : pos.sl > z.top), p + 'entry 50% zona, SL di luar sisi jauh');
+        check(pos.i > mt.breakAt && firstTouch(cs, mt.breakAt + 1, pos.entry) === pos.i, p + 'entry SETELAH tembus, saat harga kembali (retest) pertama ke 50% zona (candle ' + pos.i + ')');
+      } else {
+        check(!brs, p + 'OB belum ditembus body close: BUKAN breaker');
+        var w = cs[25];
+        check(w.h > z.top && w.c < z.top && Math.max(w.o, w.c) < z.top, p + 'candle 25: wick (' + r2(w.h) + ') melewati high OB ' + r2(z.top) + ', tetapi body close ' + r2(w.c) + ' tetap di bawah');
+        check(near(pos.entry, r2((z.top + z.bottom) / 2)) && pos.side === 'long', p + 'LP di 50% zona yang masih berupa OB bearish -> kena SL');
+      }
+    });
+
+    /* ---------- Kelengkapan kartu baru: materi, flashcard, glosarium, kuis ---------- */
+    var NEW = { hammer: 'Dasar', engulfing: 'Dasar', doji: 'Dasar', expansion: 'Struktur', consolidation: 'Struktur', reversal: 'Struktur', breaker: 'Zona' };
+    Object.keys(NEW).forEach(function (k) {
+      var c = window.CONCEPTS.filter(function (x) { return x.id === k; })[0];
+      check(!!c && c.examples === k && !!(c.apa && c.cara && c.syarat && c.salah), 'kartu ' + k + ': ada, 4 bagian lengkap, contoh = ' + k);
+      var parts = [c.apa, c.cara, c.syarat, c.salah].map(function (t) { return (t.match(/[.!?](\s|$)/g) || []).length; });
+      check(parts.every(function (n) { return n >= 1 && n <= 3; }), 'kartu ' + k + ': tiap bagian 1–3 kalimat (' + parts.join(',') + ')');
+      var nQ = window.QUIZ.filter(function (q) { return q.tag === k; }).length;
+      check(nQ >= 3, 'kuis: tag "' + k + '" punya ' + nQ + ' soal (minimal 3)');
+      check(window.FLASHCARDS.some(function (f) { return f.id === k; }), 'flashcard: kartu "' + k + '" ada');
+      check(window.GLOSSARY.some(function (g) { return g.link === k; }), 'glosarium: ada istilah yang menaut ke kartu "' + k + '"');
+      var ex = EX[k], allTx = ex.map(function (e) { return JSON.stringify(e.overlays); }).join(' ');
+      check(ex.every(function (e) { return !!e.hint && e.overlays.some(function (o) { return o.type === 'position'; }); }), k + ': tiap contoh punya petunjuk tebak dan kotak LP/SP + SL/TP');
+      check(/"kind":"(FVG|OB|BB)"/.test(allTx), k + ': ada zona berlabel FVG/OB di overlay');
+    });
+    ['Hammer', 'Shooting star', 'Engulfing', 'Inside bar', 'Doji', 'Marubozu', 'Candle expansion (displacement)', 'Consolidation', 'Breakout', 'Fakeout', 'Reversal', 'Continuation', 'Breaker block'].forEach(function (t) {
+      check(window.GLOSSARY.some(function (g) { return g.t === t; }), 'glosarium: istilah "' + t + '" ada');
+    });
+    check(window.QUIZ.filter(function (q) { return q.cat === 'dasar'; }).length >= 7 + 11, 'kuis Dasar bertambah (hammer, engulfing, doji)');
+    check(window.CONCEPTS.filter(function (c) { return c.id === 'breaker'; })[0].syarat.indexOf('bervariasi antar trader') >= 0 && window.GLOSSARY.filter(function (g) { return g.t === 'Breaker block'; })[0].arti.indexOf('bervariasi antar trader') >= 0, 'breaker: catatan "definisi bervariasi antar trader" tampil di kartu dan glosarium');
+    check(!window.CONCEPTS.some(function (c) { return /OCL/.test(JSON.stringify(c)); }) && !window.GLOSSARY.some(function (g) { return /OCL/.test(g.t + g.arti); }) && !window.QUIZ.some(function (q) { return /OCL/.test(JSON.stringify(q)); }), 'istilah OCL tidak ditambahkan (belum didefinisikan pengguna)');
+
+    /* ---------- Peta belajar: penempatan kartu per level ---------- */
+    var L = window.LEVELS, VP = window.VyProgres;
+    function ids(l) { return VP.levelIds(l); }
+    check(L.length === 4 && L.map(function (l) { return l.id; }).join() === 'l1,l2,l3,l4', 'peta: 4 level (l1, l2, l3, l4)');
+    check(/Level 1/.test(L[0].title) && /Dasar/.test(L[0].title) && /Level 2/.test(L[1].title) && /Menengah/.test(L[1].title) && /Level 3/.test(L[2].title) && /Lanjut/.test(L[2].title) && /Level 4/.test(L[3].title) && /Expert/.test(L[3].title), 'peta: judul Level 1 Dasar, Level 2 Menengah, Level 3 Lanjut, Level 4 Expert');
+    check(ids(L[0]).join() === 'candlestick,swing,hammer,engulfing,doji', 'peta Level 1: Candlestick, HH/HL/LH/LL + 3 baru (hammer, engulfing, doji)');
+    var l2 = ids(L[1]);
+    check(['bos', 'choch', 'bos-vs-choch', 'fvg', 'ifvg', 'ob', 'topdown', 'entry', 'sl', 'tp', 'noentry', 'expansion', 'consolidation', 'reversal', 'breaker'].every(function (k) { return l2.indexOf(k) >= 0; }) && l2.length === 15, 'peta Level 2: BOS, CHoCH, BOS vs CHoCH, FVG, IFVG, OB, Top-down, Eksekusi (4 kartu) + 4 baru = 15 kartu');
+    check(L[1].sections.filter(function (s) { return s.h === 'Eksekusi'; })[0].ids.join() === 'entry,sl,tp,noentry', 'peta Level 2: bagian Eksekusi berisi entry, sl, tp, noentry');
+    check(ids(L[2]).join() === 'liquidity,premdisc,smt,sesi', 'peta Level 3: Liquidity sweep, Premium & Discount, SMT, Sesi');
+    check(L[3].soon === true && ids(L[3]).length === 0, 'peta Level 4: Segera hadir (belum ada kartu)');
+    var seen = {}, dupIds = [], all = VP.allIds();
+    all.forEach(function (id) { if (seen[id]) dupIds.push(id); seen[id] = true; });
+    check(dupIds.length === 0, 'peta: tidak ada kartu ganda di dua level' + (dupIds.length ? ' -> ' + dupIds.join(',') : ''));
+    check(all.every(function (id) { return !!window.LEVEL_SPECIAL[id] || window.CONCEPTS.some(function (c) { return c.id === id; }); }), 'peta: semua id kartu menunjuk materi yang ada');
+    check(window.CONCEPTS.every(function (c) { return !!seen[c.id]; }), 'peta: tiap kartu materi (' + window.CONCEPTS.length + ') muncul tepat satu kali di peta (tautan lama tetap punya tempat)');
+    check(window.LEVEL_SPECIAL.topdown.href === '#/belajar/topdown', 'peta: Top-down tetap menaut ke #/belajar/topdown');
+
+    /* ---------- Peta belajar: logika progres ---------- */
+    function fakeSt(init) { var m = Object.assign({}, init || {}); return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, _m: m }; }
+    var s0 = VP.levelStats(L[0], {});
+    check(s0.done === 0 && s0.total === 5 && s0.pct === 0, 'progres peta: belum ada yang dibuka -> 0/5 = 0%');
+    var s1 = VP.levelStats(L[0], { candlestick: true, hammer: true });
+    check(s1.done === 2 && s1.pct === 40, 'progres peta: 2 dari 5 kartu Level 1 dibuka = 40%');
+    check(VP.levelStats(L[0], { candlestick: true, swing: true, hammer: true, engulfing: true, doji: true }).pct === 100, 'progres peta: semua kartu Level 1 dibuka = 100%');
+    check(VP.levelStats(L[1], { bos: true, fvg: true, breaker: true }).pct === 20 && VP.levelStats(L[1], { bos: true }).pct === 7, 'progres peta: pembulatan persen Level 2 (3/15 = 20%, 1/15 = 7%)');
+    check(VP.levelStats(L[0], { liquidity: true, sesi: true }).done === 0, 'progres peta: kartu level lain tidak dihitung di level ini');
+    check(VP.levelStats(L[3], { bos: true }).pct === null && VP.levelStats(L[3], {}).total === 0, 'progres peta: Level 4 tanpa kartu -> persen kosong (Segera hadir)');
+    var st = fakeSt();
+    check(VP.markOpened('fvg', st) === true && VP.markOpened('fvg', st) === false && VP.load(st).opened.fvg === true, 'progres peta: kartu ditandai dibuka sekali (pemanggilan kedua tidak mengubah)');
+    check(VP.markOpened('topdown', st) === true && VP.markOpened('tidak-ada', st) === false && !VP.load(st).opened['tidak-ada'], 'progres peta: Top-down bisa ditandai, id tak dikenal diabaikan');
+    var stB = fakeSt({ 'vytrade.progress': JSON.stringify({ best: { dasar: { score: 5, total: 7 } }, hafal: { fvg: true } }) });
+    VP.markOpened('bos', stB);
+    var pB = VP.load(stB);
+    check(pB.v === 2 && pB.best.dasar.score === 5 && pB.hafal.fvg === true && pB.opened.bos === true, 'progres peta: menandai kartu tidak menghapus skor kuis dan flashcard yang sudah ada');
+    check(VP.load(fakeSt({ 'vytrade.progress': '{rusak' })).v === 2 && Object.keys(VP.load(fakeSt({ 'vytrade.progress': '{rusak' })).opened).length === 0, 'progres peta: data lokal rusak -> data kosong, tidak error');
+    check(Object.keys(VP.load(fakeSt({ 'vytrade.progress': '{"v":9,"opened":{"bos":true}}' })).opened).length === 0, 'progres peta: data dari versi aplikasi lebih baru tidak dipakai (data kosong)');
+
+    /* ---------- Migrasi progres dan cadangan lama ---------- */
+    var old = { best: { dasar: { score: 5, total: 7 } }, hafal: { fvg: true, ob: false } };
+    var mg = VP.migrate(old);
+    check(mg.v === 2 && mg.best.dasar.score === 5 && mg.hafal.fvg === true && !mg.hafal.ob && Object.keys(mg.opened).length === 0, 'migrasi progres v1 -> v2: skor dan hafal utuh, opened kosong, nilai false dibuang');
+    check(JSON.stringify(VP.migrate(mg)) === JSON.stringify(mg), 'migrasi progres: idempoten (migrasi data v2 tidak mengubah apa pun)');
+    check(VP.migrate({ v: 2, best: {}, hafal: {}, opened: { bos: true, fvg: 0 } }).opened.bos === true && !VP.migrate({ v: 2, opened: { fvg: 0 } }).opened.fvg, 'migrasi progres: opened v2 dipertahankan (hanya nilai true)');
+    check(VP.migrate(null).v === 2 && VP.migrate([1]) === null && VP.migrate('x') === null && VP.migrate({ v: 3 }) === null && VP.migrate({ v: 0 }) === null, 'migrasi progres: null -> kosong; array/teks/versi asing -> ditolak');
+    var J = window.VyJurnal;
+    var oldBackup = { app: 'VyTrade', schema: 1, exportedAt: '2026-01-01T00:00:00.000Z', data: { jurnal: { v: 1, entries: [] }, progress: old, setup: { dir: 'buy', checked: { b1: true } } } };
+    var ob = J.validateBackup(JSON.stringify(oldBackup));
+    check(ob.ok && ob.backup.schema === 2 && ob.backup.data.progress.v === 2 && ob.backup.data.progress.best.dasar.score === 5 && ob.backup.data.progress.hafal.fvg === true && Object.keys(ob.backup.data.progress.opened).length === 0, 'cadangan lama (schema 1): bisa diimpor, progres dimigrasi ke v2, skor dan hafal utuh');
+    var tgt = fakeSt(); J.applyBackup(ob.backup, tgt);
+    check(JSON.parse(tgt.getItem('vytrade.progress')).v === 2 && JSON.parse(tgt.getItem('vytrade.setup')).checked.b1 === true && VP.load(tgt).best.dasar.total === 7, 'cadangan lama: setelah diterapkan, progres tersimpan dalam skema baru dan checklist utuh');
+    var newB = J.buildBackup(fakeSt({ 'vytrade.progress': JSON.stringify({ v: 2, best: {}, hafal: {}, opened: { bos: true, hammer: true } }) }), 1);
+    check(newB.schema === 2 && newB.data.progress.opened.hammer === true, 'ekspor baru: schema 2 dan membawa kartu yang sudah dibuka');
+    var rt = J.validateBackup(JSON.stringify(newB));
+    check(rt.ok && rt.summary.dibuka === 2 && JSON.stringify(rt.backup.data.progress) === JSON.stringify(newB.data.progress), 'impor cadangan baru: kartu dibuka (2) pulih persis; cadangan hanya berisi kartu dibuka tidak dianggap kosong');
+    var fut = JSON.parse(JSON.stringify(newB)); fut.schema = 3;
+    var pf = JSON.parse(JSON.stringify(newB)); pf.data.progress.v = 9;
+    check(!J.validateBackup(JSON.stringify(fut)).ok && !J.validateBackup(JSON.stringify(pf)).ok, 'impor: versi cadangan atau progres dari masa depan ditolak');
+    var exOld = J.buildBackup(fakeSt({ 'vytrade.progress': JSON.stringify(old) }), 1);
+    check(exOld.data.progress.v === 2 && exOld.data.progress.best.dasar.score === 5, 'ekspor dari data lokal lama (tanpa v): progres sudah dalam skema baru');
+    check(J.buildBackup(fakeSt(), 1).data.progress === null, 'ekspor tanpa data progres: tetap null (tidak berubah jadi data kosong)');
   })();
 
   lines.push(fail ? ('TOTAL GAGAL: ' + fail) : 'SEMUA LOLOS');

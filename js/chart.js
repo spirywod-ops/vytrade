@@ -8,7 +8,7 @@
    - mark:     {type:'mark', i, y, label, color, pos:'above'|'below'}   (lingkaran penanda: titik sweep, titik divergensi SMT)
    - seg:      {type:'seg', i1, y1, i2, y2, label, color, dash}         (garis miring antar dua titik, mis. HH di satu aset vs LH di aset lain)
    zone: `labelPos:'above'` menaruh label di atas sisi atas zona (menghindari panah Entry).
-   Zona tambahan: kind 'PREM' (premium, merah) dan 'DISC' (discount, hijau); `opacity` opsional.
+   Zona tambahan: kind 'PREM' (premium, merah), 'DISC' (discount, hijau), dan 'BB' (breaker block, teal); `opacity` opsional.
    renderPair(container, spec): dua chart bersusun (spec.pair = {symbol, tf, candles, overlays}) untuk SMT; satu tombol zona untuk keduanya.
 */
 (function (global) {
@@ -17,7 +17,7 @@
   var NS = 'http://www.w3.org/2000/svg';
   var W = 360, H_DEF = 250;
   var PAD = { l: 6, r: 46, t: 26, b: 18 };
-  var COLORS = { FVG: '#2f7bf6', IFVG: '#9b5de5', OB: '#f59e0b', OFF: '#8a919c', TP: '#1f9d55', SL: '#e04848', LINE: '#8a919c', PREM: '#e04848', DISC: '#1f9d55', SWEEP: '#f97316', SMT: '#d946ef' };
+  var COLORS = { FVG: '#2f7bf6', IFVG: '#9b5de5', OB: '#f59e0b', OFF: '#8a919c', TP: '#1f9d55', SL: '#e04848', LINE: '#8a919c', PREM: '#e04848', DISC: '#1f9d55', SWEEP: '#f97316', SMT: '#d946ef', BB: '#14b8a6' };
 
   function el(tag, attrs, parent) {
     var n = document.createElementNS(NS, tag);

@@ -56,6 +56,13 @@ Belajar (materi, flashcard, glosarium) · Latihan (kuis) · Setup (checklist set
 - Premium/discount: di atas/bawah 50% range. Buy di discount, sell di premium.
 - SMT: divergensi dua aset berkorelasi (XAUUSD–XAGUSD; US30/NAS100/SPX500). Hanya konfirmasi tambahan, bukan sinyal tunggal.
 - Entry/SL/TP contoh: entry di titik tengah zona (50%), SL di luar sisi jauh zona, TP = entry ± 2 × jarak risiko (RR 1:2).
+- Hammer: body kecil di atas, lower wick minimal 2x body, upper wick sangat kecil. Shooting star: kebalikannya. Hanya bermakna di area FVG/OB atau setelah sweep, bukan sinyal tunggal.
+- Engulfing: body candle kedua menutupi seluruh body candle pertama dengan arah berlawanan. Inside bar: seluruh range candle berada di dalam range candle sebelumnya (mother bar); arah breakout mengikuti body close di luar mother bar.
+- Doji: open dan close hampir sama (body sangat kecil), tanda ragu. Marubozu: body penuh tanpa atau hampir tanpa wick, tanda dorongan kuat.
+- Candle expansion (displacement): satu atau beberapa candle berbody besar dengan range minimal 1,5x rata-rata range 10 candle sebelumnya, close dekat ekstrem, biasanya meninggalkan FVG dan menembus struktur.
+- Consolidation: harga sideways dalam range dengan candle kecil, likuiditas menumpuk di atas dan bawah range. Breakout valid: body close di luar range lalu bertahan. Fakeout: wick keluar range lalu close kembali ke dalam (sama dengan sweep).
+- Reversal: struktur berbalik (CHoCH, lalu konfirmasi). Continuation: pullback ke FVG/OB lalu BOS searah tren.
+- Breaker block: OB yang ditembus body close berlawanan, lalu zonanya berbalik peran (analog IFVG), biasanya setelah sweep dan CHoCH. Catatan: definisi breaker bervariasi antar trader; ini definisi VyTrade.
 
 ## Cara baca top-down (urutan 1D, 4H, 1H, 30m, 15m, 5m, 1m)
 Tampilkan sebagai halaman bertahap, satu chart per TF, dengan penjelasan sebab-akibat dan perbandingan antar TF:
@@ -75,16 +82,21 @@ Bonus (menambah keyakinan, tidak wajib): sweep liquidity, posisi discount/premiu
 Aturan waktu ("di menit berapa"): konfirmasi hanya dihitung SETELAH candle close di TF itu (M15 tiap :00/:15/:30/:45, M5 tiap 5 menit, M1 tiap menit). Jangan entry di tengah candle yang belum close, dan hindari 1–2 menit sebelum rilis berita besar.
 Jam sesi ditampilkan dalam WIB. Hitung dengan `Intl.DateTimeFormat` (zona Europe/London dan America/New_York), jangan di-hardcode, karena bergeser saat DST.
 
+## Sistem level (peta belajar di tab Belajar)
+- Level 1 Dasar, Level 2 Menengah, Level 3 Lanjut, Level 4 Expert. Tiap kartu punya tanda centang saat sudah dibuka dan tiap level punya persentase progres (disimpan di localStorage `vytrade.progress`, ikut ekspor/impor).
+- Zona entry tetap hanya FVG dan OB. Konsep lain adalah konteks atau konfirmasi, bukan sinyal tunggal.
+- Istilah "OCL" belum didefinisikan pengguna; jangan ditambahkan.
+
+## Format studi kasus (dipakai di Tahap 10)
+5 slide dari TF besar ke kecil: Konteks pasar (1D), Profil pasar (4H), Level kunci dan konfirmasi (15m), Teknik entry (2m), Eksekusi (hasil dalam R). Chart selalu buatan sendiri (data ilustrasi), tidak menyalin gambar orang lain.
+
 ## Fitur
 Materi bertahap (Dasar, Struktur, Zona, Top-down, Eksekusi, Lanjut) · Kuis (pilihan ganda, benar/salah, tebak zona di chart, selalu ada penjelasan) · Flashcard · Checklist setup · Glosarium + pencarian · Jurnal setup · Progres.
 
 ## Tahap pembangunan
-1. Kerangka PWA + navigasi + `chart.js` + satu konsep contoh (FVG). Uji di iPhone.
-2. Dasar + Struktur: candlestick, HH/HL/LH/LL, BOS, CHoCH (+ contoh salah).
-3. Zona: FVG, IFVG, OB, masing-masing minimal 2 contoh.
-4. Top-down 1D→1m + Checklist setup.
-5. Kuis, flashcard, glosarium.
-6. Jurnal + ekspor/impor JSON.
-7. Lanjut: liquidity, premium/discount, SMT, sesi.
-7B. Eksekusi (isi grup Eksekusi di tab Belajar): entry, stop loss, take profit RR 1:2, kapan TIDAK entry.
+Tahap 1–7B sudah selesai (kerangka PWA, Dasar, Struktur, Zona, Top-down + Checklist, Kuis/flashcard/glosarium, Jurnal, Lanjut, Eksekusi).
+8. Peta belajar + Level 1 dan Level 2 baru.
+9. Level 3 baru: CISD, QML, inducement & turtle soup, AMD.
+10. Level 4 Expert (IRL ke ERL, narasi bias HTF) + 6 studi kasus.
+11. Simulasi baca chart, kalkulator lot, tag kesalahan jurnal.
 Setelah tahap 1 dan seterusnya, pandu deploy ke GitHub Pages (klik demi klik) agar bisa dipasang di iPhone.

@@ -35,34 +35,52 @@
     ]);
   }
 
+  /* ---------- Peta belajar: 4 level, centang kartu yang sudah dibuka, persentase progres per level ---------- */
+  function cardLink(id, opened) {
+    var sp = window.LEVEL_SPECIAL[id], c = sp ? null : window.CONCEPTS.filter(function (x) { return x.id === id; })[0];
+    var done = !!opened[id];
+    return h('a', { class: 'card link' + (done ? ' done' : ''), href: sp ? sp.href : '#/belajar/' + id, 'data-card': id, 'data-done': done ? '1' : '0', title: done ? 'Sudah dibuka' : 'Belum dibuka' }, [
+      h('span', { class: 'ct' }, [
+        h('span', { class: 'tick' + (done ? ' on' : ''), 'aria-hidden': 'true', text: done ? '✓' : '' }),
+        h('span', { text: sp ? sp.title : c.title }),
+        done ? h('span', { class: 'sr', text: ' (sudah dibuka)' }) : null
+      ]),
+      h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })
+    ]);
+  }
+
   function viewBelajar() {
+    var VP = window.VyProgres, opened = VP.load().opened;
     var root = h('section', null, [
       h('div', { class: 'hero' }, [
         h('h1', { class: 'brand', text: 'VyTrade' }),
         h('p', { class: 'muted', text: 'Belajar trading XAUUSD dan indeks, dari dasar sampai lanjut.' }),
         h('p', { class: 'disclaimer', text: 'Edukasi, bukan saran keuangan.' })
-      ])
+      ]),
+      h('h2', { class: 'peta-h', text: 'Peta belajar' })
     ]);
-    window.GROUPS.forEach(function (g) {
-      var items = window.CONCEPTS.filter(function (c) { return c.group === g; });
-      root.appendChild(h('h2', { text: g }));
-      if (g === 'Top-down') {
-        root.appendChild(h('a', { class: 'card link', href: '#/belajar/topdown' }, [
-          h('span', { text: 'Cara baca top-down (1D → 1m)' }),
-          h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })
-        ]));
+    window.LEVELS.forEach(function (lv) {
+      var st = VP.levelStats(lv, opened);
+      var box = h('section', { class: 'level', id: 'lvl-' + lv.id }, [
+        h('div', { class: 'lvl-head' }, [
+          h('h2', { text: lv.title }),
+          h('span', { class: 'lvl-pct' + (st.pct === 100 ? ' full' : ''), text: lv.soon ? 'Segera hadir' : st.pct + '%' })
+        ])
+      ]);
+      if (lv.soon) {
+        box.appendChild(h('p', { class: 'muted soon-row', text: 'Segera hadir' }));
+        root.appendChild(box);
         return;
       }
-      if (!items.length) {
-        root.appendChild(h('p', { class: 'muted soon-row', text: 'Segera hadir' }));
-        return;
-      }
-      items.forEach(function (c) {
-        root.appendChild(h('a', { class: 'card link', href: '#/belajar/' + c.id }, [
-          h('span', { text: c.title }),
-          h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })
-        ]));
+      box.appendChild(h('div', { class: 'bar', role: 'progressbar', 'aria-label': 'Progres ' + lv.title, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(st.pct) }, [
+        h('span', { style: 'width:' + st.pct + '%' })
+      ]));
+      box.appendChild(h('p', { class: 'muted small lvl-sub', text: lv.desc + ' ' + st.done + ' dari ' + st.total + ' kartu dibuka.' }));
+      lv.sections.forEach(function (sec) {
+        if (sec.h) box.appendChild(h('h3', { class: 'sub', text: sec.h }));
+        sec.ids.forEach(function (id) { box.appendChild(cardLink(id, opened)); });
       });
+      root.appendChild(box);
     });
     return root;
   }
@@ -349,6 +367,7 @@
     if (cleanup) { cleanup(); cleanup = null; }
     var parts = (location.hash || '#/belajar').replace(/^#\/?/, '').split('/');
     var tab = parts[0] || 'belajar', node;
+    if (tab === 'belajar' && parts[1]) window.VyProgres.markOpened(parts[1]); // centang kartu di Peta belajar (id tak dikenal diabaikan)
     if (tab === 'belajar') node = parts[1] === 'topdown' ? viewTopdown(parts[2], parts[3]) : parts[1] ? viewKonsep(parts[1]) : viewBelajar();
     else if (tab === 'latihan') node = latihan.route(parts);
     else if (tab === 'setup') node = viewSetup();

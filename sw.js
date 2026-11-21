@@ -1,12 +1,13 @@
 // Naikkan nomor versi ini setiap perubahan agar cache lama diganti.
-const CACHE = 'vytrade-v9';
+const CACHE = 'vytrade-v10';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css',
-  './js/app.js', './js/chart.js', './js/setup.js', './js/latihan.js', './js/jurnal.js',
-  './data/concepts.js', './data/examples/util.js', './data/examples/candlestick.js',
+  './js/app.js', './js/chart.js', './js/setup.js', './js/latihan.js', './js/jurnal.js', './js/progres.js',
+  './data/concepts.js', './data/levels.js', './data/examples/util.js', './data/examples/candlestick.js',
   './data/examples/swing.js', './data/examples/bos.js', './data/examples/choch.js',
   './data/examples/fvg.js', './data/examples/ifvg.js', './data/examples/ob.js', './data/examples/entry.js', './data/examples/sl.js', './data/examples/tp.js', './data/examples/noentry.js', './data/examples/liquidity.js', './data/examples/premdisc.js', './data/examples/smt.js',
+  './data/examples/hammer.js', './data/examples/engulfing.js', './data/examples/doji.js', './data/examples/expansion.js', './data/examples/consolidation.js', './data/examples/reversal.js', './data/examples/breaker.js',
   './data/topdown.js', './data/setup.js', './data/quiz.js', './data/flashcards.js', './data/glossary.js',
   './assets/icons/icon-180.png', './assets/icons/icon-192.png', './assets/icons/icon-512.png'
 ];

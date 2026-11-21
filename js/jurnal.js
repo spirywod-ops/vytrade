@@ -4,7 +4,8 @@
   'use strict';
 
   var KEYS = { jurnal: 'vytrade.jurnal', progress: 'vytrade.progress', setup: 'vytrade.setup' };
-  var SCHEMA = 1;            // versi skema jurnal DAN file cadangan
+  var SCHEMA = 1;            // versi skema data jurnal
+  var BACKUP_SCHEMA = 2;     // versi file cadangan (2 = progres punya 'opened'; cadangan versi 1 tetap bisa diimpor lewat migrasi)
   var APP = 'VyTrade';
   var PAIRS = ['XAUUSD', 'US30', 'NAS100', 'SPX500'];
   var TFS = ['1D', '4H', '1H', '30m', '15m', '5m', '1m'];
@@ -90,9 +91,15 @@
   function buildBackup(st, now) {
     st = st || store();
     return {
-      app: APP, schema: SCHEMA, exportedAt: new Date(now || Date.now()).toISOString(),
-      data: { jurnal: loadJurnal(st), progress: readJSON(st, KEYS.progress), setup: readJSON(st, KEYS.setup) }
+      app: APP, schema: BACKUP_SCHEMA, exportedAt: new Date(now || Date.now()).toISOString(),
+      data: { jurnal: loadJurnal(st), progress: migrateProgress(readJSON(st, KEYS.progress), true), setup: readJSON(st, KEYS.setup) }
     };
+  }
+
+  // Progres lokal/cadangan -> skema terbaru (null tetap null supaya 'tidak ada data' tidak berubah jadi data kosong).
+  function migrateProgress(p, keepNull) {
+    if (p === null || p === undefined) return keepNull ? null : global.VyProgres.migrate(null);
+    return global.VyProgres.migrate(p);
   }
 
   function summarize(b) {
@@ -101,6 +108,7 @@
       jurnal: b.data.jurnal.entries.length,
       kuis: Object.keys(p.best || {}).length,
       hafal: Object.keys(p.hafal || {}).length,
+      dibuka: Object.keys(p.opened || {}).length,
       checklist: Object.keys(s.checked || {}).filter(function (k) { return s.checked[k]; }).length
     };
   }
@@ -110,15 +118,19 @@
     var b;
     try { b = JSON.parse(text); } catch (e) { return { ok: false, error: 'File rusak: bukan JSON yang valid.' }; }
     if (!b || typeof b !== 'object' || b.app !== APP || !b.data || typeof b.data !== 'object') return { ok: false, error: 'Bukan file cadangan VyTrade.' };
-    if (b.schema !== SCHEMA) return { ok: false, error: 'Versi cadangan tidak cocok (file: ' + b.schema + ', aplikasi: ' + SCHEMA + ').' };
+    if (b.schema !== 1 && b.schema !== BACKUP_SCHEMA) return { ok: false, error: 'Versi cadangan tidak cocok (file: ' + b.schema + ', aplikasi: ' + BACKUP_SCHEMA + ').' };
     var d = b.data, j = d.jurnal == null ? { v: SCHEMA, entries: [] } : migrateJurnal(d.jurnal);
     if (!j) return { ok: false, error: 'Data jurnal di file rusak.' };
     var p = d.progress == null ? null : d.progress, s = d.setup == null ? null : d.setup;
     if (p !== null && (typeof p !== 'object' || Array.isArray(p))) return { ok: false, error: 'Data progres di file rusak.' };
     if (s !== null && (typeof s !== 'object' || Array.isArray(s))) return { ok: false, error: 'Data checklist di file rusak.' };
-    var clean = { app: APP, schema: SCHEMA, exportedAt: b.exportedAt, data: { jurnal: j, progress: p, setup: s } };
+    if (p !== null) {
+      p = migrateProgress(p);
+      if (!p) return { ok: false, error: 'Data progres di file rusak atau dari versi aplikasi yang lebih baru.' };
+    }
+    var clean = { app: APP, schema: BACKUP_SCHEMA, exportedAt: b.exportedAt, data: { jurnal: j, progress: p, setup: s } };
     var sum = summarize(clean);
-    if (!sum.jurnal && !sum.kuis && !sum.hafal && !sum.checklist) return { ok: false, error: 'File cadangan kosong, tidak ada data untuk diimpor.' };
+    if (!sum.jurnal && !sum.kuis && !sum.hafal && !sum.dibuka && !sum.checklist) return { ok: false, error: 'File cadangan kosong, tidak ada data untuk diimpor.' };
     return { ok: true, backup: clean, summary: sum };
   }
 
@@ -334,7 +346,7 @@
         no.addEventListener('click', function () { importBox.innerHTML = ''; msgBox.textContent = 'Impor dibatalkan.'; });
         importBox.appendChild(h('div', { class: 'card', id: 'impor-ringkas' }, [
           h('h3', { text: 'File valid. Isi cadangan:' }),
-          h('p', { class: 'small', text: s.jurnal + ' catatan jurnal · ' + s.kuis + ' kategori kuis · ' + s.hafal + ' kartu hafal · ' + s.checklist + ' centang checklist.' }),
+          h('p', { class: 'small', text: s.jurnal + ' catatan jurnal · ' + s.kuis + ' kategori kuis · ' + s.hafal + ' kartu hafal · ' + s.dibuka + ' kartu materi dibuka · ' + s.checklist + ' centang checklist.' }),
           h('p', { class: 'small', text: 'Data yang ada sekarang akan DITIMPA. Lanjutkan?' }),
           yes, no
         ]));
@@ -358,7 +370,7 @@
   }
 
   global.VyJurnal = {
-    KEYS: KEYS, SCHEMA: SCHEMA, PAIRS: PAIRS, calcRR: calcRR, stats: stats, rOf: rOf, cleanEntry: cleanEntry,
+    KEYS: KEYS, SCHEMA: SCHEMA, BACKUP_SCHEMA: BACKUP_SCHEMA, migrateProgress: migrateProgress, PAIRS: PAIRS, calcRR: calcRR, stats: stats, rOf: rOf, cleanEntry: cleanEntry,
     loadJurnal: loadJurnal, saveJurnal: saveJurnal, buildBackup: buildBackup, validateBackup: validateBackup,
     applyBackup: applyBackup, build: build
   };

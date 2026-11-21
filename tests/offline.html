@@ -35,6 +35,10 @@
       ['liquidity', 'premdisc', 'smt', 'entry', 'sl', 'tp', 'noentry'].forEach(function (k) {
         check(files.indexOf('./data/examples/' + k + '.js') >= 0, 'FILES memuat data/examples/' + k + '.js');
       });
+      ['hammer', 'engulfing', 'doji', 'expansion', 'consolidation', 'reversal', 'breaker'].forEach(function (k) {
+        check(files.indexOf('./data/examples/' + k + '.js') >= 0, 'FILES memuat data/examples/' + k + '.js');
+      });
+      ['./js/progres.js', './data/levels.js'].forEach(function (f) { check(files.indexOf(f) >= 0, 'FILES memuat ' + f); });
       done();
     });
   }).catch(function (e) { check(false, 'error: ' + e); done(); });

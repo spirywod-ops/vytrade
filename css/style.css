@@ -190,3 +190,19 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .tl-seg.tl-asia { background: #8a919c; } .tl-seg.tl-london { background: #2f7bf6; } .tl-seg.tl-newyork { background: #f59e0b; }
 .tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); }
 .tl-axis { display: flex; justify-content: space-between; margin: 2px 0 0 100px; font-size: 10px; color: var(--muted); }
+
+/* Peta belajar */
+.peta-h { margin-top: 18px; }
+.level { margin-bottom: 8px; }
+.lvl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lvl-head h2 { margin: 18px 0 6px; font-size: 15px; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.lvl-pct { font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.lvl-pct.full { color: var(--ok); }
+.bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
+.lvl-sub { margin: 6px 0 8px; }
+h3.sub { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 12px 0 6px; }
+a.card.link .ct { display: flex; align-items: center; gap: 10px; }
+.tick { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); color: #fff; font-size: 13px; line-height: 1; }
+.tick.on { background: var(--ok); border-color: var(--ok); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

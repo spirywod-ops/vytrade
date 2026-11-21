@@ -63,6 +63,55 @@ window.CONCEPTS = [
     pilih: true
   },
   {
+    id: 'hammer', group: 'Dasar', title: 'Hammer & shooting star', examples: 'hammer',
+    apa: 'Hammer adalah candle dengan body kecil di atas dan wick bawah panjang (minimal 2x body). Shooting star kebalikannya: body kecil di bawah dan wick atas panjang.',
+    cara: 'Lihat apakah wick-nya menyapu low (hammer) atau high (shooting star) lalu close kembali ke dalam. Cari pola ini di dalam OB atau FVG, lalu entry di titik tengah zona setelah candle close.',
+    syarat: 'Wick minimal 2x body dan wick di sisi lain sangat kecil. Hanya bermakna di area FVG/OB atau setelah sweep, dan hanya konteks, bukan sinyal tunggal.',
+    salah: 'Menganggap setiap candle berwick panjang sebagai sinyal beli atau jual, padahal tanpa zona dan sweep polanya tidak bermakna. Entry di tengah candle sebelum close juga keliru.'
+  },
+  {
+    id: 'engulfing', group: 'Dasar', title: 'Engulfing & inside bar', examples: 'engulfing',
+    apa: 'Engulfing: body candle kedua menutupi seluruh body candle pertama dengan arah berlawanan. Inside bar: seluruh range candle berada di dalam range candle sebelumnya (mother bar).',
+    cara: 'Cari engulfing di dalam FVG atau OB, lalu entry di titik tengah zona setelah candle close. Untuk inside bar, tunggu body close di luar mother bar; arah breakout mengikuti body close itu.',
+    syarat: 'Body kedua menutupi seluruh body pertama, atau seluruh range inside bar ada di dalam mother bar. Tetap butuh konteks FVG/OB, bukan sinyal tunggal.',
+    salah: 'Menyebut breakout padahal hanya wick yang keluar dari mother bar. Memakai engulfing di tengah tren tanpa zona juga keliru.'
+  },
+  {
+    id: 'doji', group: 'Dasar', title: 'Doji & marubozu', examples: 'doji',
+    apa: 'Doji punya open dan close hampir sama (body sangat kecil), tanda ragu. Marubozu punya body penuh tanpa atau hampir tanpa wick, tanda dorongan kuat.',
+    cara: 'Doji di area sweep atau zona menandakan harga mulai ragu. Marubozu yang menembus struktur dan meninggalkan FVG menandakan dorongan; entry tetap di FVG atau OB.',
+    syarat: 'Doji: body sangat kecil dibanding range candle. Marubozu: body hampir sepenuh range candle. Keduanya hanya konteks, bukan sinyal tunggal.',
+    salah: 'Menganggap doji sebagai tanda pembalikan pasti, padahal itu hanya ragu. Membeli melawan marubozu turun juga keliru.'
+  },
+  {
+    id: 'expansion', group: 'Struktur', title: 'Candle expansion (displacement)', examples: 'expansion',
+    apa: 'Candle expansion adalah satu atau beberapa candle berbody besar yang bergerak cepat dan tegas. Range-nya minimal 1,5x rata-rata range 10 candle sebelumnya.',
+    cara: 'Cari candle yang jauh lebih panjang dari sekitarnya dengan close dekat ekstrem. Biasanya ia meninggalkan FVG dan menembus struktur (BOS atau CHoCH); entry di FVG itu.',
+    syarat: 'Range minimal 1,5x rata-rata 10 candle sebelumnya, body besar, dan close dekat ekstrem. Idealnya meninggalkan FVG dan body close menembus struktur.',
+    salah: 'Menyebut candle besar yang berwick panjang sebagai ekspansi. Candle seperti itu menunjukkan penolakan harga, bukan dorongan.'
+  },
+  {
+    id: 'consolidation', group: 'Struktur', title: 'Consolidation (breakout vs fakeout)', examples: 'consolidation',
+    apa: 'Consolidation adalah harga bergerak sideways dalam range dengan candle kecil. Likuiditas menumpuk di atas dan di bawah range.',
+    cara: 'Tandai high dan low range, lalu tunggu candle yang keluar. Breakout valid kalau body close di luar range lalu bertahan; fakeout kalau hanya wick keluar lalu close kembali ke dalam.',
+    syarat: 'Body close di luar range dan candle berikutnya bertahan di luar. Entry tetap di FVG atau OB yang tertinggal, bukan di garis range.',
+    salah: 'Entry saat wick baru menyentuh luar range. Menyebut breakout padahal close kembali ke dalam (itu fakeout atau sweep).'
+  },
+  {
+    id: 'reversal', group: 'Struktur', title: 'Reversal vs continuation', examples: 'reversal',
+    apa: 'Reversal berarti struktur berbalik: CHoCH lalu konfirmasi. Continuation berarti tren lanjut: pullback ke FVG/OB lalu BOS searah tren.',
+    cara: 'Lihat dulu trennya, baru lihat arah tembusannya. Berlawanan tren (CHoCH) = kemungkinan reversal; searah tren (BOS) setelah pullback ke zona = continuation.',
+    syarat: 'Reversal butuh CHoCH dengan body close, lalu konfirmasi (misalnya BOS searah arah baru). Continuation butuh pullback ke FVG/OB lalu BOS searah tren.',
+    salah: 'Menyebut pullback sebagai reversal padahal tidak ada body close menembus swing berlawanan. Melawan tren hanya karena harga naik atau turun beberapa candle juga keliru.'
+  },
+  {
+    id: 'breaker', group: 'Zona', title: 'Breaker block', examples: 'breaker',
+    apa: 'Breaker block adalah OB yang ditembus body close berlawanan, lalu zonanya berbalik peran. Ini analog IFVG, tetapi untuk OB.',
+    cara: 'Cari OB yang gagal: biasanya setelah sweep dan CHoCH, harga body close menembus sisi jauhnya. Tunggu harga kembali ke zona dan entry di titik tengah (50%) searah peran baru.',
+    syarat: 'Body close melewati sisi jauh OB, lalu zona belum ditembus balik. Definisi breaker bervariasi antar trader; ini definisi VyTrade.',
+    salah: 'Menyebut breaker padahal hanya wick yang menembus OB. Entry saat zona baru ditembus, tanpa menunggu harga kembali ke zona, juga keliru.'
+  },
+  {
     id: 'entry', group: 'Eksekusi', title: 'Entry', examples: 'entry',
     apa: 'Entry adalah harga tempat posisi dibuka. Di VyTrade, entry hanya di zona FVG atau OB di TF kecil (5m/1m), setelah ada konfirmasi CHoCH atau BOS dengan body close.',
     cara: 'Tunggu candle konfirmasi close dulu, lalu tunggu harga kembali ke zona (retest) dan taruh entry di titik tengah (50%). Kalau harga lari menjauh dan tidak kembali ke zona, jangan dikejar; tunggu setup berikutnya.',

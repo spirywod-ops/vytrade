@@ -47,5 +47,20 @@ window.GLOSSARY = [
   { t: 'Target liquidity', arti: 'TP di liquidity terdekat (EQH/EQL atau swing). Boleh dipakai asal RR tetap minimal 1:2.', link: 'tp' },
   { t: 'Berita besar', arti: 'Rilis data ekonomi penting yang bisa menggerakkan harga tiba-tiba. Hindari entry 1–2 menit sebelum rilis.', link: 'noentry' },
   { t: 'FOMO', arti: 'Fear of missing out: takut ketinggalan lalu entry tanpa syarat lengkap. Lebih baik lewati setup itu.', link: 'noentry' },
-  { t: 'Zona entry', arti: 'Area tempat mencari entry: hanya FVG dan OB. BOS/CHoCH dan liquidity adalah konfirmasi.', link: 'fvg' }
+  { t: 'Zona entry', arti: 'Area tempat mencari entry: hanya FVG dan OB. BOS/CHoCH dan liquidity adalah konfirmasi.', link: 'fvg' },
+  { t: 'Hammer', arti: 'Candle dengan body kecil di atas dan lower wick minimal 2x body. Hanya bermakna di area FVG/OB atau setelah sweep.', link: 'hammer' },
+  { t: 'Shooting star', arti: 'Kebalikan hammer: body kecil di bawah dan upper wick minimal 2x body. Dicari di OB bearish atau setelah sweep high.', link: 'hammer' },
+  { t: 'Engulfing', arti: 'Candle yang body-nya menutupi seluruh body candle sebelumnya dengan arah berlawanan. Hanya konteks, bukan sinyal tunggal.', link: 'engulfing' },
+  { t: 'Inside bar', arti: 'Candle yang seluruh range-nya berada di dalam range candle sebelumnya (mother bar). Arah breakout mengikuti body close di luar mother bar.', link: 'engulfing' },
+  { t: 'Mother bar', arti: 'Candle besar sebelum inside bar. High dan low-nya jadi batas untuk menilai breakout.', link: 'engulfing' },
+  { t: 'Doji', arti: 'Candle dengan open dan close hampir sama (body sangat kecil). Tanda ragu, bukan sinyal arah.', link: 'doji' },
+  { t: 'Marubozu', arti: 'Candle dengan body penuh, tanpa atau hampir tanpa wick. Tanda dorongan kuat.', link: 'doji' },
+  { t: 'Candle expansion (displacement)', arti: 'Satu atau beberapa candle berbody besar dengan range minimal 1,5x rata-rata 10 candle sebelumnya. Biasanya meninggalkan FVG dan menembus struktur.', link: 'expansion' },
+  { t: 'Consolidation', arti: 'Harga sideways dalam range dengan candle kecil. Likuiditas menumpuk di atas dan bawah range.', link: 'consolidation' },
+  { t: 'Breakout', arti: 'Body close di luar range lalu bertahan. Wick yang keluar lalu close kembali ke dalam bukan breakout.', link: 'consolidation' },
+  { t: 'Fakeout', arti: 'Wick keluar dari range lalu close kembali ke dalam. Sifatnya sama dengan sweep.', link: 'consolidation' },
+  { t: 'Reversal', arti: 'Struktur berbalik: CHoCH lalu konfirmasi. Entry tetap di FVG atau OB.', link: 'reversal' },
+  { t: 'Continuation', arti: 'Tren lanjut: pullback ke FVG/OB lalu BOS searah tren.', link: 'reversal' },
+  { t: 'Pullback', arti: 'Gerak balik sementara melawan tren, misalnya harga naik sebentar saat downtrend. Dalam continuation, pullback berhenti di FVG atau OB.', link: 'reversal' },
+  { t: 'Breaker block', arti: 'OB yang ditembus body close berlawanan, lalu zonanya berbalik peran. Definisi breaker bervariasi antar trader; ini definisi VyTrade.', link: 'breaker' }
 ];

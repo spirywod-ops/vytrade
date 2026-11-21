@@ -3,18 +3,10 @@
 (function (global) {
   'use strict';
 
-  var KEY = 'vytrade.progress';
-
   /* ---------- Progres ---------- */
-  // {best: {catId: {score, total}}, hafal: {cardId: true}}
-  function load() {
-    try {
-      var v = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (v && typeof v === 'object') return { best: v.best || {}, hafal: v.hafal || {} };
-    } catch (e) { /* abaikan */ }
-    return { best: {}, hafal: {} };
-  }
-  function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* abaikan */ } }
+  // {v, best: {catId: {score, total}}, hafal: {cardId: true}, opened: {cardId: true}}; logika skema ada di js/progres.js
+  function load() { return global.VyProgres.load(); }
+  function save(p) { global.VyProgres.save(p); }
 
   // Skor baru menggantikan terbaik kalau persentasenya lebih tinggi. Kembalikan true kalau rekor baru.
   function recordBest(p, cat, score, total) {
@@ -102,7 +94,7 @@
           setTimeout(function () { armed = false; reset.textContent = 'Reset progres'; reset.classList.remove('danger'); }, 4000);
           return;
         }
-        save({ best: {}, hafal: {} });
+        var p0 = load(); p0.best = {}; p0.hafal = {}; save(p0); // kartu yang sudah dibuka tidak ikut dihapus
         global.location.hash = '#/latihan/x'; // paksa render ulang
         global.location.hash = base;
       });
@@ -330,7 +322,7 @@
   }
 
   global.VyLatihan = {
-    KEY: KEY, load: load, save: save, recordBest: recordBest, shuffle: shuffle, questionsOf: questionsOf,
+    KEY: global.VyProgres.KEY, load: load, save: save, recordBest: recordBest, shuffle: shuffle, questionsOf: questionsOf,
     prepare: prepare, searchGlossary: searchGlossary, linkOf: linkOf, build: build
   };
 })(window);

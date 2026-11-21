@@ -18,12 +18,17 @@
     ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob',
      'belajar/entry', 'belajar/sl', 'belajar/tp', 'belajar/noentry',
      'belajar/liquidity', 'belajar/premdisc', 'belajar/smt', 'belajar/sesi',
+     'belajar/hammer', 'belajar/engulfing', 'belajar/doji', 'belajar/expansion', 'belajar/consolidation', 'belajar/reversal', 'belajar/breaker', 'belajar/tidak-ada',
      'belajar/topdown/bull/1d', 'belajar/topdown/bull/4h', 'belajar/topdown/bull/1h', 'belajar/topdown/bull/30m', 'belajar/topdown/bull/15m', 'belajar/topdown/bull/5m', 'belajar/topdown/bull/1m',
      'belajar/topdown/bear/1d', 'belajar/topdown/bear/4h', 'belajar/topdown/bear/1h', 'belajar/topdown/bear/30m', 'belajar/topdown/bear/15m', 'belajar/topdown/bear/5m', 'belajar/topdown/bear/1m',
+     'belajar',
      'latihan', 'latihan/kuis', 'latihan/kuis/dasar', 'latihan/kuis/struktur', 'latihan/kuis/zona', 'latihan/kuis/topdown', 'latihan/kuis/checklist', 'latihan/kuis/eksekusi', 'latihan/kuis/lanjut',
      'latihan/flashcard', 'latihan/glosarium', 'setup', 'jurnal'];
   var keepOn = q.get('ov') === '1';
   var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
+  // Error di halaman uji sendiri (bukan di iframe aplikasi) ditampilkan, supaya uji yang macet tidak diam saja.
+  window.addEventListener('error', function (e) { lines.push('GAGAL error di halaman uji: ' + e.message); fail++; document.getElementById('out').textContent = lines.join('\n'); });
+  window.addEventListener('unhandledrejection', function (e) { lines.push('GAGAL promise ditolak di halaman uji: ' + (e.reason && e.reason.message || e.reason)); fail++; document.getElementById('out').textContent = lines.join('\n'); });
   function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
   function done() {
     pRestore();
@@ -196,29 +201,32 @@
         var dt = new w.DataTransfer(); dt.items.add(new w.File([t], 'x.json', { type: 'application/json' }));
         var fi = V.querySelector('#impor-file'); fi.files = dt.files; fi.dispatchEvent(new w.Event('change'));
       }
+      // Pembacaan file async: tunggu sampai hasilnya muncul (bukan jeda tetap) supaya uji tidak bergantung kecepatan.
+      function until(cond, fn) { var n = 0; (function t() { if (cond() || ++n > 300) fn(); else setTimeout(t, 10); })(); }
       pick('{rusak');
-      setTimeout(function () {
+      until(function () { return /Impor gagal/.test(V.querySelector('#cad-msg').textContent); }, function () {
         check(/Impor gagal/.test(V.querySelector('#cad-msg').textContent) && !V.querySelector('#impor-ya'), 'jurnal: impor file rusak -> pesan gagal, tanpa tombol timpa');
         pick(text);
-        setTimeout(function () {
-          check(!!V.querySelector('#impor-ringkas') && /1 catatan jurnal/.test(V.querySelector('#impor-ringkas').textContent) && J.loadJurnal().entries.length === 0, 'jurnal: impor file valid -> ringkasan tampil, data belum ditimpa');
+        until(function () { return !!V.querySelector('#impor-ringkas'); }, function () {
+          check(!!V.querySelector('#impor-ringkas') && /1 catatan jurnal/.test(V.querySelector('#impor-ringkas').textContent) && /kartu materi dibuka/.test(V.querySelector('#impor-ringkas').textContent) && J.loadJurnal().entries.length === 0, 'jurnal: impor file valid -> ringkasan tampil, data belum ditimpa (ringkasan: ' + (V.querySelector('#impor-ringkas') ? V.querySelector('#impor-ringkas').textContent : 'tidak ada; pesan: ' + V.querySelector('#cad-msg').textContent) + ')');
           V.querySelector('#impor-tidak').click();
           check(J.loadJurnal().entries.length === 0, 'jurnal: batal impor -> data tidak berubah');
           pick(text);
-          setTimeout(function () {
+          until(function () { return !!V.querySelector('#impor-ya'); }, function () {
             V.querySelector('#impor-ya').click();
             check(J.loadJurnal().entries.length === 1 && V.querySelectorAll('article.jr').length === 1 && /Impor selesai/.test(V.querySelector('#cad-msg').textContent), 'jurnal: konfirmasi timpa -> data pulih + daftar diperbarui');
             next();
-          }, 100);
-        }, 100);
-      }, 100);
+          });
+        });
+      });
     });
   }
 
   function step() {
     if (idx >= routes.length) return done();
     var r = routes[idx++];
-    if (/^(latihan|jurnal|setup)/.test(r)) pStart();
+    document.getElementById('out').textContent = lines.join('\n') + '\n... rute ' + idx + '/' + routes.length + ': ' + r; // kemajuan (terlihat kalau uji berhenti di tengah)
+    pStart(); // Belajar juga menyimpan progres (kartu dibuka), jadi cadangkan data pengguna sejak rute pertama
     if (r === 'jurnal') localStorage.removeItem('vytrade.jurnal');
     errs = [];
     f.onload = function () {
@@ -227,7 +235,7 @@
       w.location.hash = '#/' + r;
       setTimeout(function () {
         var arts = d.querySelectorAll('article.ex'), svgs = d.querySelectorAll('svg.chart');
-        var isTop = /^belajar\/topdown/.test(r), isSesi = r === 'belajar/sesi', isBelajarKonsep = /^belajar\/./.test(r) && !isTop && !isSesi;
+        var isTop = /^belajar\/topdown/.test(r), isSesi = r === 'belajar/sesi', isBelajarKonsep = /^belajar\/./.test(r) && !isTop && !isSesi && r !== 'belajar/tidak-ada';
         if (isBelajarKonsep) {
           var key = r.split('/')[1], cons = w.CONCEPTS.filter(function (c) { return c.id === key; })[0], exs = w.EXAMPLES[cons.examples];
           var wantSvgs = exs.reduce(function (n, e) { return n + (e.pair ? 2 : 1); }, 0);
@@ -254,6 +262,25 @@
           check(okBtn, r + ': tombol zona: mati -> nyala -> mati, overlay ada isinya');
           if (r === 'belajar/ob' || r === 'belajar/fvg') check(/FVG atau OB, pilih yang mana\?/.test(d.getElementById('view').textContent), r + ': bagian "FVG atau OB, pilih yang mana?" tampil');
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN" di halaman');
+          check(w.VyProgres.load().opened[key] === true, r + ': kartu ditandai sudah dibuka di progres peta belajar');
+          // Tahap 8: kartu baru
+          if (/^belajar\/(hammer|engulfing|doji|expansion|consolidation|reversal|breaker)$/.test(r)) {
+            var tx8 = Array.prototype.map.call(svgs, function (x) { return x.textContent; }).join(' ');
+            var need8 = { hammer: ['OB', 'Hammer', 'Shooting star', 'Sweep', 'CHoCH', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                          engulfing: ['FVG', 'Engulfing', 'Inside bar', 'Mother', 'CHoCH', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                          doji: ['FVG', 'Doji', 'Marubozu', 'CHoCH', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                          expansion: ['FVG', 'Ekspansi', 'CHoCH', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                          consolidation: ['Range', 'FVG', 'Breakout', 'Fakeout', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                          reversal: ['FVG', 'OB', 'CHoCH', 'BOS', 'LH', 'HL', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                          breaker: ['Breaker', 'OB bearish', 'OB bullish', 'Sweep', 'CHoCH', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'] }[key];
+            var miss8 = need8.filter(function (t) { return tx8.indexOf(t) < 0; });
+            check(miss8.length === 0, r + ': label di chart lengkap' + (miss8.length ? ' (kurang: ' + miss8.join(', ') + ')' : ''));
+            var V8 = d.getElementById('view').textContent;
+            check(/Apa itu/.test(V8) && /Cara melihat/.test(V8) && /Syarat valid/.test(V8) && /Kesalahan umum/.test(V8), r + ': kartu materi 4 bagian');
+            check(arts.length >= 3 && d.querySelectorAll('.badge.ok').length >= 2 && d.querySelectorAll('.badge.bad').length >= 1, r + ': minimal 2 contoh VALID + 1 BELUM VALID (' + d.querySelectorAll('.badge.ok').length + ' valid, ' + d.querySelectorAll('.badge.bad').length + ' belum)');
+            check(Array.prototype.every.call(svgs, function (x) { return x.querySelectorAll('g.ov text').length >= 3 && /Entry/.test(x.textContent) && /TP \d/.test(x.textContent) && /SL \d/.test(x.textContent) && /(LP|SP)/.test(x.textContent); }), r + ': tiap chart punya Entry, TP, SL, LP/SP di overlay');
+            check(/LP/.test(tx8) && /SP/.test(tx8) && Array.prototype.some.call(svgs, function (x) { return x.querySelectorAll('g.ov rect').length >= 3; }), r + ': ada contoh LP dan SP, dan zona/kotak posisi tergambar');
+          }
           // Tahap 7: isi khusus per konsep (label wajib di chart + kartu 4 bagian + tombol zona)
           if (/^belajar\/(liquidity|premdisc|smt|entry|sl|tp|noentry)$/.test(r)) {
             var allTx = Array.prototype.map.call(svgs, function (x) { return x.textContent; }).join(' ');
@@ -281,6 +308,10 @@
             }
             if (key === 'liquidity') check(Array.prototype.filter.call(svgs, function (x) { return x.querySelectorAll('g.ov circle').length === 1; }).length === 2, r + ': tanda sweep (lingkaran) di 2 contoh valid');
           }
+        } else if (r === 'belajar/tidak-ada') {
+          var VX = d.getElementById('view');
+          check(/Materi tidak ditemukan/.test(VX.textContent) && VX.querySelectorAll('svg.chart').length === 0, r + ': id materi tak dikenal -> pesan "Materi tidak ditemukan", tanpa error');
+          check(Object.keys(w.VyProgres.load().opened).indexOf('tidak-ada') < 0, r + ': id tak dikenal tidak ikut tercatat sebagai kartu dibuka');
         } else if (isSesi) {
           var VS7 = d.getElementById('view'), rows7 = VS7.querySelectorAll('#sesi-box .row'), live = w.VySetup.sessions(Date.now());
           check(rows7.length === 3 && live.every(function (x, i) { return rows7[i].textContent.indexOf(x.name) >= 0 && rows7[i].textContent.indexOf(x.wib) >= 0; }), r + ': 3 sesi (Asia, London, New York) dengan jam WIB hasil hitungan: ' + live.map(function (x) { return x.wib; }).join(' | '));
@@ -288,6 +319,7 @@
           check(VS7.querySelectorAll('.tl-row').length === 3 && Array.prototype.every.call(VS7.querySelectorAll('.tl-now'), function (n) { return /%$/.test(n.style.left); }) && VS7.querySelectorAll('.tl-seg').length >= 3, r + ': garis waktu 24 jam: 3 batang sesi + penanda sekarang');
           check(/Overlap London \+ New York/.test(VS7.textContent) && /Kapan likuiditas/.test(VS7.textContent) && VS7.querySelectorAll('.ses-info').length === 3, r + ': penjelasan likuiditas + overlap + info tiap sesi');
           check(!/undefined|NaN|Segera hadir/.test(VS7.innerHTML), r + ': tidak ada "undefined"/"NaN"/"Segera hadir"');
+          check(w.VyProgres.load().opened.sesi === true, r + ': kartu Sesi ditandai sudah dibuka');
         } else if (isTop) {
           var tf = r.split('/')[3], sc = r.split('/')[2], T = w.TOPDOWN.scenarios[sc].steps;
           var sv = d.querySelectorAll('svg.chart'), btn = d.querySelector('button.btn'), tds = T.filter(function (x) { return x.id === tf; })[0];
@@ -307,6 +339,7 @@
             check(/RR 1:2/.test(d.getElementById('view').textContent), r + ': penutup RR 1:2');
           }
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN"');
+          check(w.VyProgres.load().opened.topdown === true, r + ': kartu Top-down ditandai sudah dibuka');
         } else if (/^latihan/.test(r)) {
           latihanTest(r, w, d);
         } else if (r === 'setup') {
@@ -337,18 +370,41 @@
         } else {
           check(d.getElementById('view').textContent.length > 20, r + ': halaman terisi');
           if (r === 'belajar') {
-            var links = d.querySelectorAll('a.card.link');
-            check(links.length >= 6, 'belajar: ' + links.length + ' kartu materi (Dasar + Struktur + FVG)');
-            check(/FVG|IFVG|OB/.test(d.getElementById('view').textContent) && links.length >= 8, 'belajar: kartu IFVG dan OB ada (' + links.length + ' kartu)');
-            check(/Edukasi, bukan saran keuangan/.test(d.getElementById('view').textContent), 'belajar: disclaimer tampil');
+            var BV = d.getElementById('view'), links = d.querySelectorAll('a.card.link'), LV = w.LEVELS, firstPass = idx === 1;
+            check(/Edukasi, bukan saran keuangan/.test(BV.textContent), 'belajar: disclaimer tampil');
+            var lvEls = BV.querySelectorAll('section.level');
+            check(lvEls.length === 4 && Array.prototype.every.call(lvEls, function (e, i) { return e.id === 'lvl-' + LV[i].id && e.querySelector('h2').textContent === LV[i].title; }), 'belajar: Peta belajar punya 4 level (' + Array.prototype.map.call(lvEls, function (e) { return e.querySelector('h2').textContent; }).join(' | ') + ')');
             var hrefs = Array.prototype.map.call(links, function (a) { return a.getAttribute('href'); });
-            check(['liquidity', 'premdisc', 'smt', 'sesi'].every(function (k) { return hrefs.indexOf('#/belajar/' + k) >= 0; }), 'belajar: grup Lanjut berisi kartu Liquidity, Premium/Discount, SMT, Sesi');
-            check(['entry', 'sl', 'tp', 'noentry'].every(function (k) { return hrefs.indexOf('#/belajar/' + k) >= 0; }), 'belajar: grup Eksekusi berisi kartu Entry, SL, TP, Kapan TIDAK entry');
-            var hs = Array.prototype.map.call(d.querySelectorAll('#view h2'), function (x) { return x.textContent; });
-            var eksRow = d.querySelector('#view h2:nth-of-type(' + (hs.indexOf('Eksekusi') + 1) + ')');
-            check(hs.indexOf('Eksekusi') >= 0 && eksRow.nextElementSibling && eksRow.nextElementSibling.tagName === 'A' && !/Segera hadir/.test(d.getElementById('view').textContent), 'belajar: grup Eksekusi tidak lagi "Segera hadir"');
-            var lanjutRow = d.querySelector('#view h2:nth-of-type(' + (hs.indexOf('Lanjut') + 1) + ')');
-            check(hs.indexOf('Lanjut') >= 0 && lanjutRow.nextElementSibling && lanjutRow.nextElementSibling.tagName === 'A', 'belajar: grup Lanjut tidak lagi "Segera hadir"');
+            var wantCards = w.VyProgres.allIds().length;
+            check(links.length === wantCards && w.CONCEPTS.every(function (c) { return hrefs.indexOf('#/belajar/' + c.id) >= 0; }) && hrefs.indexOf('#/belajar/topdown') >= 0, 'belajar: ' + links.length + ' kartu di peta, semua tautan lama (#/belajar/...) ada, termasuk Top-down');
+            var perLevel = Array.prototype.map.call(lvEls, function (e) { return e.querySelectorAll('a.card.link').length; });
+            check(perLevel.join() === '5,15,4,0', 'belajar: jumlah kartu per level = ' + perLevel.join(',') + ' (harap 5,15,4,0)');
+            var l1ids = Array.prototype.map.call(lvEls[0].querySelectorAll('a.card.link'), function (a) { return a.getAttribute('data-card'); }).join();
+            check(l1ids === 'candlestick,swing,hammer,engulfing,doji', 'belajar Level 1: ' + l1ids);
+            var subs = Array.prototype.map.call(lvEls[1].querySelectorAll('h3.sub'), function (x) { return x.textContent; }).join();
+            check(subs === 'Struktur,Zona,Top-down,Eksekusi', 'belajar Level 2: bagian ' + subs);
+            var eks = Array.prototype.filter.call(lvEls[1].querySelectorAll('h3.sub'), function (x) { return x.textContent === 'Eksekusi'; })[0], eksIds = [], nx = eks.nextElementSibling;
+            while (nx && nx.tagName === 'A') { eksIds.push(nx.getAttribute('data-card')); nx = nx.nextElementSibling; }
+            check(eksIds.join() === 'entry,sl,tp,noentry', 'belajar Level 2: bagian Eksekusi berisi ' + eksIds.join(','));
+            check(lvEls[2].querySelectorAll('a.card.link').length === 4 && !/Segera hadir/.test(lvEls[2].textContent), 'belajar Level 3: Liquidity, Premium & Discount, SMT, Sesi, tidak lagi "Segera hadir"');
+            check(/Segera hadir/.test(lvEls[3].textContent) && lvEls[3].querySelectorAll('a').length === 0 && lvEls[3].querySelectorAll('.bar').length === 0, 'belajar Level 4: "Segera hadir", tanpa kartu dan tanpa bar progres');
+            var pcts = Array.prototype.map.call(lvEls, function (e) { return e.querySelector('.lvl-pct').textContent; });
+            if (firstPass) {
+              check(pcts.slice(0, 3).join() === '0%,0%,0%' && BV.querySelectorAll('.tick.on').length === 0 && BV.querySelectorAll('a[data-done="1"]').length === 0, 'belajar (awal): semua level 0%, belum ada kartu tercentang');
+              check(Array.prototype.every.call(BV.querySelectorAll('.bar'), function (b) { return b.getAttribute('aria-valuenow') === '0' && b.querySelector('span').style.width === '0%'; }) && BV.querySelectorAll('.bar').length === 3, 'belajar (awal): 3 bar progres (Level 1-3) kosong');
+              // simulasi: dua kartu Level 1 dibuka -> 40%
+              w.VyProgres.markOpened('candlestick'); w.VyProgres.markOpened('hammer');
+              w.dispatchEvent(new w.Event('hashchange'));
+              var BV2 = d.getElementById('view'), lv2 = BV2.querySelectorAll('section.level');
+              check(lv2[0].querySelector('.lvl-pct').textContent === '40%' && lv2[0].querySelectorAll('.tick.on').length === 2 && /2 dari 5 kartu dibuka/.test(lv2[0].textContent) && lv2[0].querySelector('.bar').getAttribute('aria-valuenow') === '40', 'belajar: buka 2 dari 5 kartu Level 1 -> 40%, 2 centang, bar 40%');
+              check(lv2[0].querySelector('a[data-card="hammer"]').getAttribute('data-done') === '1' && lv2[0].querySelector('a[data-card="swing"]').getAttribute('data-done') === '0' && lv2[1].querySelector('.lvl-pct').textContent === '0%', 'belajar: centang hanya di kartu yang dibuka; Level 2 tetap 0%');
+              check(JSON.parse(w.localStorage.getItem('vytrade.progress')).opened.hammer === true, 'belajar: progres kartu dibuka tersimpan di localStorage (vytrade.progress)');
+              w.localStorage.removeItem('vytrade.progress');
+            } else {
+              check(pcts.slice(0, 3).join() === '100%,100%,100%' && BV.querySelectorAll('.tick.on').length === wantCards, 'belajar (setelah semua kartu dibuka): Level 1-3 = 100%, ' + BV.querySelectorAll('.tick.on').length + ' dari ' + wantCards + ' kartu tercentang');
+              check(Array.prototype.every.call(BV.querySelectorAll('.bar'), function (b) { return b.getAttribute('aria-valuenow') === '100' && b.querySelector('span').style.width === '100%'; }), 'belajar (setelah semua dibuka): bar progres penuh');
+            }
+            check(!/undefined|NaN/.test(BV.innerHTML), 'belajar: tidak ada "undefined"/"NaN"');
           }
         }
         function finish() {
