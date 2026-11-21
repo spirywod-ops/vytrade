@@ -63,6 +63,34 @@ window.CONCEPTS = [
     pilih: true
   },
   {
+    id: 'entry', group: 'Eksekusi', title: 'Entry', examples: 'entry',
+    apa: 'Entry adalah harga tempat posisi dibuka. Di VyTrade, entry hanya di zona FVG atau OB di TF kecil (5m/1m), setelah ada konfirmasi CHoCH atau BOS dengan body close.',
+    cara: 'Tunggu candle konfirmasi close dulu, lalu tunggu harga kembali ke zona (retest) dan taruh entry di titik tengah (50%). Kalau harga lari menjauh dan tidak kembali ke zona, jangan dikejar; tunggu setup berikutnya.',
+    syarat: 'Konfirmasi sudah body close, zona belum ditembus body close berlawanan, dan harga menyentuh titik 50%. Konfirmasi dihitung setelah candle close, bukan di tengah candle.',
+    salah: 'Entry saat candle konfirmasi belum close, padahal bisa saja berakhir sebagai wick (sweep). Mengejar harga yang sudah lari tanpa retest juga keliru.'
+  },
+  {
+    id: 'sl', group: 'Eksekusi', title: 'Stop loss (SL)', examples: 'sl',
+    apa: 'Stop loss (SL) adalah harga untuk menutup posisi saat setup salah. Dengan SL, kerugian sudah dibatasi sebelum entry.',
+    cara: 'Taruh SL sedikit di luar sisi jauh zona: di bawah zona untuk LP, di atas zona untuk SP. Kalau ada sweep, taruh di luar low atau high sweep itu.',
+    syarat: 'SL di luar sisi jauh zona, bukan di tengah zona. Jarak entry ke SL (risiko) dipakai menghitung TP agar RR 1:2.',
+    salah: 'SL terlalu sempit di dalam zona: wick kecil sudah menyentuhnya, lalu harga lanjut sesuai analisa. Menggeser SL menjauh setelah entry karena takut kena juga keliru.'
+  },
+  {
+    id: 'tp', group: 'Eksekusi', title: 'Take profit dan RR 1:2', examples: 'tp',
+    apa: 'Take profit (TP) adalah harga target untuk menutup posisi saat untung. RR (risk reward) 1:2 berarti jarak TP dua kali jarak SL.',
+    cara: 'Hitung risiko = jarak entry ke SL, lalu TP = entry ± 2 × risiko (naik untuk LP, turun untuk SP). Opsi lain: target ke liquidity terdekat (EQH/EQL atau swing), asal RR tetap minimal 1:2.',
+    syarat: 'RR minimal 1:2. Kalau liquidity terdekat terlalu dekat sehingga RR di bawah 1:2, lewati setup itu atau cari target berikutnya.',
+    salah: 'Menaruh TP terlalu dekat supaya cepat untung (RR 1:1 atau kurang). Satu kali kalah lalu menghapus hasil satu kali menang.'
+  },
+  {
+    id: 'noentry', group: 'Eksekusi', title: 'Kapan TIDAK entry', examples: 'noentry',
+    apa: 'Tidak entry juga keputusan trading. Lewati setup kalau salah satu syarat checklist belum lengkap.',
+    cara: 'Jangan entry kalau bias TF besar tidak jelas, zona sudah ditembus body close, konfirmasi CHoCH/BOS belum ada, atau berita besar akan rilis dalam 1–2 menit. Berita tidak bisa digambar di chart, jadi cek kalender ekonomi sebelum entry.',
+    syarat: 'Satu alasan di atas sudah cukup untuk tidak entry. Tunggu sampai kelima syarat wajib di checklist terpenuhi.',
+    salah: 'Memaksa entry karena takut ketinggalan (FOMO) atau karena sudah lama menunggu. Setup yang terlewat tidak merugikan, posisi yang dipaksa bisa.'
+  },
+  {
     id: 'liquidity', group: 'Lanjut', title: 'Liquidity sweep', examples: 'liquidity',
     apa: 'Liquidity adalah area tempat banyak order menumpuk, biasanya di atas equal high (EQH) atau di bawah equal low (EQL). Sweep terjadi saat harga mengambil order itu lalu berbalik.',
     cara: 'Tandai dua high atau low yang sejajar, lalu tunggu satu candle yang wick-nya melewati level itu. Kalau candle tersebut close kembali ke dalam, itu sweep.',

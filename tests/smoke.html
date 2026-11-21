@@ -16,16 +16,22 @@
   var q = new URLSearchParams(location.search);
   var routes = q.get('r') ? [q.get('r')] :
     ['belajar', 'belajar/candlestick', 'belajar/swing', 'belajar/bos', 'belajar/choch', 'belajar/bos-vs-choch', 'belajar/fvg', 'belajar/ifvg', 'belajar/ob',
+     'belajar/entry', 'belajar/sl', 'belajar/tp', 'belajar/noentry',
      'belajar/liquidity', 'belajar/premdisc', 'belajar/smt', 'belajar/sesi',
      'belajar/topdown/bull/1d', 'belajar/topdown/bull/4h', 'belajar/topdown/bull/1h', 'belajar/topdown/bull/30m', 'belajar/topdown/bull/15m', 'belajar/topdown/bull/5m', 'belajar/topdown/bull/1m',
      'belajar/topdown/bear/1d', 'belajar/topdown/bear/4h', 'belajar/topdown/bear/1h', 'belajar/topdown/bear/30m', 'belajar/topdown/bear/15m', 'belajar/topdown/bear/5m', 'belajar/topdown/bear/1m',
-     'latihan', 'latihan/kuis', 'latihan/kuis/dasar', 'latihan/kuis/struktur', 'latihan/kuis/zona', 'latihan/kuis/topdown', 'latihan/kuis/checklist', 'latihan/kuis/lanjut',
+     'latihan', 'latihan/kuis', 'latihan/kuis/dasar', 'latihan/kuis/struktur', 'latihan/kuis/zona', 'latihan/kuis/topdown', 'latihan/kuis/checklist', 'latihan/kuis/eksekusi', 'latihan/kuis/lanjut',
      'latihan/flashcard', 'latihan/glosarium', 'setup', 'jurnal'];
   var keepOn = q.get('ov') === '1';
   var lines = [], fail = 0, f = document.getElementById('f'), idx = 0, errs = [];
   function check(ok, msg) { lines.push((ok ? 'OK    ' : 'GAGAL ') + msg); if (!ok) fail++; }
   function done() {
     pRestore();
+    if (pSaved) {
+      var back = true;
+      try { ALLKEYS.forEach(function (k) { if (localStorage.getItem(k) !== backups[k]) back = false; }); } catch (e) { back = false; }
+      check(back, 'data pengguna (progres, jurnal, checklist) dipulihkan persis seperti sebelum uji');
+    }
     lines.push(fail ? 'TOTAL GAGAL: ' + fail : 'SEMUA LOLOS');
     document.getElementById('out').textContent = lines.join('\n');
     // ?report=1: kirim hasil ke localhost:8081 (untuk uji otomatis tanpa layar)
@@ -229,8 +235,8 @@
           // tiap chart punya candle (body+wick), label TF, tulisan Ilustrasi
           check(Array.prototype.every.call(svgs, function (s) {
             return s.querySelectorAll('rect.body').length >= 8 && s.querySelectorAll('line.wick').length >= 8 &&
-                   /[A-Z0-9]{5,8} · M15/.test(s.textContent) && /Ilustrasi/.test(s.textContent);
-          }), r + ': candle (body+wick), label "SIMBOL · M15", dan "Ilustrasi" ada di semua chart');
+                   /[A-Z0-9]{5,8} · M(1|5|15)(?!\d)/.test(s.textContent) && /Ilustrasi/.test(s.textContent);
+          }), r + ': candle (body+wick), label "SIMBOL · M5/M15", dan "Ilustrasi" ada di semua chart');
           // tombol zona: awalnya tersembunyi, menyala, lalu mati lagi
           var okBtn = true;
           Array.prototype.forEach.call(arts, function (a) {
@@ -249,16 +255,23 @@
           if (r === 'belajar/ob' || r === 'belajar/fvg') check(/FVG atau OB, pilih yang mana\?/.test(d.getElementById('view').textContent), r + ': bagian "FVG atau OB, pilih yang mana?" tampil');
           check(!/undefined|NaN/.test(d.getElementById('view').innerHTML), r + ': tidak ada "undefined"/"NaN" di halaman');
           // Tahap 7: isi khusus per konsep (label wajib di chart + kartu 4 bagian + tombol zona)
-          if (/^belajar\/(liquidity|premdisc|smt)$/.test(r)) {
+          if (/^belajar\/(liquidity|premdisc|smt|entry|sl|tp|noentry)$/.test(r)) {
             var allTx = Array.prototype.map.call(svgs, function (x) { return x.textContent; }).join(' ');
             var need = { liquidity: ['EQL', 'EQH', 'Sweep', 'BOS', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
                          premdisc: ['Premium', 'Discount', '50%', 'FVG', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15'],
+                         entry: ['FVG', 'OB', 'CHoCH', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M5'],
+                         sl: ['OB', 'FVG', 'Sweep', 'EQL', 'SL benar', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M5'],
+                         tp: ['OB', 'FVG', 'Liq', 'TP 1:2', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M5'],
+                         noentry: ['FVG', 'HH', 'LL', 'HL', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M5'],
                          smt: ['SMT', 'HH', 'LH', 'LL', 'HL', 'FVG', 'OB', 'LP', 'SP', 'TP', 'SL', 'Entry', 'XAUUSD · M15', 'XAGUSD · M15', 'US30 · M15', 'NAS100 · M15'] }[key];
             var miss = need.filter(function (t) { return allTx.indexOf(t) < 0; });
             check(miss.length === 0, r + ': label di chart lengkap' + (miss.length ? ' (kurang: ' + miss.join(', ') + ')' : ''));
             var V7 = d.getElementById('view').textContent;
             check(/Apa itu/.test(V7) && /Cara melihat/.test(V7) && /Syarat valid/.test(V7) && /Kesalahan umum/.test(V7), r + ': kartu materi 4 bagian');
-            check(arts.length >= 3 && d.querySelectorAll('.badge.ok').length >= 2 && d.querySelectorAll('.badge.bad').length >= 1, r + ': minimal 2 contoh VALID + 1 BELUM VALID (' + d.querySelectorAll('.badge.ok').length + ' valid, ' + d.querySelectorAll('.badge.bad').length + ' belum)');
+            if (key === 'noentry') check(arts.length >= 1 && d.querySelectorAll('.badge.bad').length === arts.length, r + ': minimal 1 contoh chart, semuanya berlabel BELUM VALID (' + arts.length + ' contoh)');
+            else check(arts.length >= 3 && d.querySelectorAll('.badge.ok').length >= 2 && d.querySelectorAll('.badge.bad').length >= 1, r + ': minimal 2 contoh VALID + 1 BELUM VALID (' + d.querySelectorAll('.badge.ok').length + ' valid, ' + d.querySelectorAll('.badge.bad').length + ' belum)');
+            if (key === 'entry' || key === 'sl' || key === 'tp') check(/LP/.test(Array.prototype.map.call(svgs, function (x) { return x.textContent; }).join(' ')) && /SP/.test(Array.prototype.map.call(svgs, function (x) { return x.textContent; }).join(' ')), r + ': ada contoh LP dan SP');
+            if (key === 'entry' || key === 'sl' || key === 'tp' || key === 'noentry') check(Array.prototype.every.call(svgs, function (x) { return x.querySelectorAll('g.ov text').length >= 3 && /Entry/.test(x.textContent) && /TP \d/.test(x.textContent) && /SL \d/.test(x.textContent) && /(LP|SP)/.test(x.textContent); }), r + ': tiap chart punya Entry, TP, SL, LP/SP di overlay');
             if (key === 'smt') {
               var twoEach = Array.prototype.every.call(arts, function (a, i) {
                 var q = a.querySelectorAll('svg.chart');
@@ -330,7 +343,10 @@
             check(/Edukasi, bukan saran keuangan/.test(d.getElementById('view').textContent), 'belajar: disclaimer tampil');
             var hrefs = Array.prototype.map.call(links, function (a) { return a.getAttribute('href'); });
             check(['liquidity', 'premdisc', 'smt', 'sesi'].every(function (k) { return hrefs.indexOf('#/belajar/' + k) >= 0; }), 'belajar: grup Lanjut berisi kartu Liquidity, Premium/Discount, SMT, Sesi');
+            check(['entry', 'sl', 'tp', 'noentry'].every(function (k) { return hrefs.indexOf('#/belajar/' + k) >= 0; }), 'belajar: grup Eksekusi berisi kartu Entry, SL, TP, Kapan TIDAK entry');
             var hs = Array.prototype.map.call(d.querySelectorAll('#view h2'), function (x) { return x.textContent; });
+            var eksRow = d.querySelector('#view h2:nth-of-type(' + (hs.indexOf('Eksekusi') + 1) + ')');
+            check(hs.indexOf('Eksekusi') >= 0 && eksRow.nextElementSibling && eksRow.nextElementSibling.tagName === 'A' && !/Segera hadir/.test(d.getElementById('view').textContent), 'belajar: grup Eksekusi tidak lagi "Segera hadir"');
             var lanjutRow = d.querySelector('#view h2:nth-of-type(' + (hs.indexOf('Lanjut') + 1) + ')');
             check(hs.indexOf('Lanjut') >= 0 && lanjutRow.nextElementSibling && lanjutRow.nextElementSibling.tagName === 'A', 'belajar: grup Lanjut tidak lagi "Segera hadir"');
           }

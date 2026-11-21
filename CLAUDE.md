@@ -86,4 +86,5 @@ Materi bertahap (Dasar, Struktur, Zona, Top-down, Eksekusi, Lanjut) · Kuis (pil
 5. Kuis, flashcard, glosarium.
 6. Jurnal + ekspor/impor JSON.
 7. Lanjut: liquidity, premium/discount, SMT, sesi.
+7B. Eksekusi (isi grup Eksekusi di tab Belajar): entry, stop loss, take profit RR 1:2, kapan TIDAK entry.
 Setelah tahap 1 dan seterusnya, pandu deploy ke GitHub Pages (klik demi klik) agar bisa dipasang di iPhone.

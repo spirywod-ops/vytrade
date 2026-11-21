@@ -11,6 +11,10 @@
 <script src="../data/examples/fvg.js"></script>
 <script src="../data/examples/ifvg.js"></script>
 <script src="../data/examples/ob.js"></script>
+<script src="../data/examples/entry.js"></script>
+<script src="../data/examples/sl.js"></script>
+<script src="../data/examples/tp.js"></script>
+<script src="../data/examples/noentry.js"></script>
 <script src="../data/examples/liquidity.js"></script>
 <script src="../data/examples/premdisc.js"></script>
 <script src="../data/examples/smt.js"></script>
@@ -943,6 +947,207 @@
       var n = window.EXAMPLES[c.examples];
       check(n.filter(function (e) { return e.valid === true; }).length >= 2 && n.filter(function (e) { return e.valid === false; }).length >= 1, k + ': minimal 2 contoh valid + 1 contoh BELUM VALID');
     });
+  })();
+
+  /* ===== Eksekusi (Tahap 7B): entry, SL, TP, kapan tidak entry ===== */
+  (function () {
+    var EX = window.EXAMPLES;
+    function rr(p) { return Math.abs(p.tp - p.entry) / Math.abs(p.entry - p.sl); }
+    function r2(v) { return Math.round(v * 100) / 100; }
+    function lineOf(ex, label) { return ex.overlays.filter(function (o) { return o.type === 'line' && o.label === label; })[0]; }
+    function firstTouch(cs, from, to, price) { for (var k = from; k <= to; k++) if (cs[k].l <= price && cs[k].h >= price) return k; return -1; }
+
+    // Pemeriksaan umum tiap contoh Eksekusi: label, entry disentuh harga, SL/TP di sisi benar, posisi tidak melewati data.
+    function basics(ex) {
+      var pos = posOf(ex), z = zoneOf(ex), cs = ex.candles, p = ex.id + ': ', long = pos.side === 'long';
+      check(candlesOk(ex), p + 'semua candle OHLC konsisten');
+      check(ex.symbol === 'XAUUSD' && ex.tf === 'M5', p + 'label ' + ex.symbol + ' · ' + ex.tf);
+      check(ex.overlays.some(function (o) { return o.type === 'arrow' && o.label === 'Entry'; }), p + 'ada panah Entry');
+      check(!!pos && !!z, p + 'ada kotak posisi ' + (long ? 'LP' : 'SP') + ' dan zona');
+      check(typeof ex.note === 'string' && ex.note.length > 20 && !/undefined|NaN/.test(ex.note), p + 'catatan terisi tanpa token tersisa');
+      check(cs[pos.i].l <= pos.entry && cs[pos.i].h >= pos.entry, p + 'harga menyentuh entry di candle ke-' + pos.i);
+      check(long ? (pos.sl < pos.entry && pos.tp > pos.entry) : (pos.sl > pos.entry && pos.tp < pos.entry), p + 'SL/TP di sisi yang benar untuk ' + pos.side);
+      check(pos.i2 < cs.length && z.i2 < cs.length, p + 'kotak posisi dan zona tidak melewati data candle');
+      return { pos: pos, z: z, cs: cs, long: long };
+    }
+    // Zona FVG: cocok dengan deteksi baku, arah sesuai, selesai terbentuk sebelum entry; alive = belum tertembus sampai candle entry.
+    function fvgOf(ex, b, alive) {
+      var d = VyChart.detectFVG(b.cs).filter(function (f) { return f.i1 === b.z.i1; })[0], p = ex.id + ': ';
+      check(!!d && near(d.top, b.z.top) && near(d.bottom, b.z.bottom), p + 'zona gambar = zona deteksi FVG');
+      if (!d) return null;
+      check((d.dir === 'bull') === b.long, p + 'arah FVG ' + d.dir + ' sesuai posisi ' + b.pos.side);
+      check(d.i3 < b.pos.i, p + 'FVG selesai terbentuk (candle ' + d.i3 + ') sebelum entry (candle ' + b.pos.i + ')');
+      if (alive) check(!d.breached || d.breachIndex > b.pos.i, p + 'FVG belum tertembus body close sampai entry');
+      return d;
+    }
+    function obOf(ex, b) {
+      var o = detectOB(b.cs).filter(function (d) { return d.i === b.z.i1; })[0], p = ex.id + ': ';
+      check(!!o && near(o.top, b.z.top) && near(o.bottom, b.z.bottom), p + 'zona gambar = zona deteksi OB (candle ' + b.z.i1 + ')');
+      if (o) check((o.dir === 'bull') === b.long, p + 'arah OB ' + o.dir + ' sesuai posisi ' + b.pos.side);
+      return o;
+    }
+    // Konfirmasi: garis CHoCH berakhir di candle body close yang menembus swing berlawanan tren, searah entry.
+    function chochOf(ex, b) {
+      var ln = lineOf(ex, 'CHoCH'), p = ex.id + ': ';
+      check(!!ln, p + 'ada garis CHoCH');
+      if (!ln) return null;
+      var e = detectBreaks(b.cs).filter(function (x) { return x.j === ln.i2 && x.kind === 'CHoCH'; })[0];
+      check(!!e && e.dir === (b.long ? 'up' : 'down') && near(e.level, ln.y) && e.levelIdx === ln.i1, p + 'CHoCH body close di candle ' + ln.i2 + ' searah entry, level = swing (' + ln.y + ')');
+      if (!e) return null;
+      check(b.long ? b.cs[e.j].c > e.level : b.cs[e.j].c < e.level, p + 'candle konfirmasi punya BODY CLOSE melewati level');
+      check(b.pos.i > e.j, p + 'entry (candle ' + b.pos.i + ') setelah candle konfirmasi close (candle ' + e.j + ')');
+      return e;
+    }
+    // Retest: setelah konfirmasi, harga baru menyentuh titik entry (50%) di candle entry, bukan lebih awal.
+    function retestOf(ex, b, e) {
+      if (!e) return;
+      check(firstTouch(b.cs, e.j + 1, b.cs.length - 1, b.pos.entry) === b.pos.i, ex.id + ': setelah konfirmasi, harga kembali menyentuh titik 50% pertama kali di candle ' + b.pos.i + ' (retest)');
+    }
+
+    /* --- Entry --- */
+    EX.entry.forEach(function (ex) {
+      var b = basics(ex), cs = b.cs, p = ex.id + ': ';
+      checkPos(ex, b.z, b.pos);
+      if (ex.valid) {
+        var d = b.z.kind === 'FVG' ? fvgOf(ex, b, true) : obOf(ex, b);
+        var e = chochOf(ex, b);
+        check(!!e && e.j === ex.meta.breakAt, p + 'candle konfirmasi = ' + ex.meta.breakAt);
+        if (e && d) check(b.z.kind === 'FVG' ? (d.i1 < e.j && e.j <= d.i3) : d.j === e.j, p + 'zona terbentuk oleh gerak yang menembus struktur');
+        retestOf(ex, b, e);
+        var zp = false;
+        for (var q = b.z.i1 + 1; q <= b.pos.i; q++) if (b.long ? cs[q].c < b.z.bottom : cs[q].c > b.z.top) zp = true;
+        check(!zp, p + 'zona belum ditembus body close sampai entry');
+      } else {
+        // BELUM VALID: entry di zona yang nyata (FVG), tetapi tidak pernah ada body close melewati swing -> konfirmasi belum ada.
+        fvgOf(ex, b, true);
+        var lv = lineOf(ex, 'LH');
+        check(!!lv && near(lv.y, ex.meta.level) && b.long, p + 'level LH ' + ex.meta.level + ' digambar (entry LP)');
+        check(cs.every(function (c, k) { return k < 15 || c.c < ex.meta.level; }), p + 'tidak ada body close di atas LH ' + ex.meta.level + ' (konfirmasi belum ada)');
+        check(!detectBreaks(cs).some(function (x) { return x.kind === 'CHoCH'; }), p + 'deteksi tidak menemukan CHoCH sama sekali');
+        check(ex.overlays.some(function (o) { return o.type === 'text' && /Belum close/.test(o.text); }), p + 'ada tulisan "Belum close" di chart');
+      }
+    });
+
+    /* --- Stop loss --- */
+    EX.sl.forEach(function (ex) {
+      var b = basics(ex), cs = b.cs, pos = b.pos, p = ex.id + ': ';
+      if (ex.id === 'sl-bull') {
+        checkPos(ex, b.z, pos);
+        obOf(ex, b);
+        var e = chochOf(ex, b);
+        retestOf(ex, b, e);
+        var sw = detectSweeps(cs).filter(function (x) { return x.j === ex.meta.sweepAt; })[0];
+        check(!!sw && sw.kind === 'sweep' && sw.side === 'low' && near(sw.level, ex.meta.level), p + 'candle ' + ex.meta.sweepAt + ' = sweep di bawah EQL ' + ex.meta.level);
+        check(b.z.i1 === ex.meta.sweepAt && near(b.z.bottom, cs[ex.meta.sweepAt].l), p + 'candle sweep = candle OB, sisi bawah zona = low sweep');
+        check(pos.sl < cs[ex.meta.sweepAt].l, p + 'SL ' + pos.sl + ' di bawah low sweep ' + cs[ex.meta.sweepAt].l);
+        check(ex.overlays.some(function (o) { return o.type === 'mark' && o.label === 'Sweep' && o.i === ex.meta.sweepAt; }), p + 'tanda Sweep di candle ' + ex.meta.sweepAt);
+      } else if (ex.id === 'sl-bear') {
+        checkPos(ex, b.z, pos);
+        fvgOf(ex, b, true);
+        var e2 = chochOf(ex, b);
+        retestOf(ex, b, e2);
+        check(!b.long && pos.sl > b.z.top, p + 'SP: SL ' + pos.sl + ' di atas sisi jauh zona ' + b.z.top);
+      } else {
+        // SALAH: SL di dalam zona, kena wick, harga lanjut. RR tetap 1:2 (dihitung dari SL sempit), jadi hanya letak SL yang salah.
+        obOf(ex, b);
+        check(near((b.z.top + b.z.bottom) / 2, pos.entry), p + 'entry = 50% zona');
+        check(near(rr(pos), 2), p + 'RR 1:2 dihitung dari SL sempit');
+        check(b.long ? (pos.sl > b.z.bottom && pos.sl < pos.entry) : (pos.sl < b.z.top && pos.sl > pos.entry), p + 'SL ' + pos.sl + ' ada DI DALAM zona (' + b.z.bottom + '–' + b.z.top + '), melanggar aturan');
+        check(outcome(cs, pos) === 'SL', p + 'hasil posisi dengan SL sempit = SL');
+        var hit = -1;
+        for (var k = pos.i; k < cs.length; k++) if (cs[k].l <= pos.sl) { hit = k; break; }
+        check(hit > pos.i && Math.min(cs[hit].o, cs[hit].c) > b.z.bottom && cs[hit].l > b.z.bottom, p + 'candle ' + hit + ' hanya wick menyentuh SL; body dan wick tidak menembus zona');
+        var right = r2(b.z.bottom - 0.7);
+        var ln = lineOf(ex, 'SL benar');
+        check(near(ex.meta.rightSl, right) && !!ln && near(ln.y, right), p + 'garis "SL benar" di ' + right + ' (di luar zona) digambar');
+        var tp2 = pos.entry + 2 * (pos.entry - right);
+        check(outcome(cs, { side: pos.side, i: pos.i, entry: pos.entry, sl: right, tp: tp2 }) === 'TP', p + 'dengan SL di luar zona (' + right + ') harga lanjut sampai TP ' + r2(tp2) + ' tanpa kena SL');
+      }
+    });
+
+    /* --- Take profit dan RR --- */
+    EX.tp.forEach(function (ex) {
+      var b = basics(ex), cs = b.cs, pos = b.pos, p = ex.id + ': ';
+      if (ex.valid) {
+        checkPos(ex, b.z, pos);
+        if (b.z.kind === 'FVG') fvgOf(ex, b, true); else obOf(ex, b);
+        var e = chochOf(ex, b);
+        retestOf(ex, b, e);
+        if (ex.id === 'tp-bull') {
+          var lq = lineOf(ex, 'Liq');
+          check(!!lq && near(lq.y, ex.meta.liq) && detectSwings(cs).some(function (s) { return s.type === 'H' && near(s.price, ex.meta.liq); }), p + 'garis Liq di swing high ' + ex.meta.liq);
+          check(ex.meta.liq > pos.tp && (ex.meta.liq - pos.entry) / (pos.entry - pos.sl) >= 2, p + 'target liquidity ' + ex.meta.liq + ' memberi RR ' + r2((ex.meta.liq - pos.entry) / (pos.entry - pos.sl)) + ' (minimal 1:2)');
+          check(cs.some(function (c, k) { return k > pos.i && c.h >= ex.meta.liq; }), p + 'harga akhirnya mengambil liquidity ' + ex.meta.liq);
+        }
+      } else {
+        // BELUM VALID: entry/SL benar, tetapi TP hanya 1:1 (di bawah 1:2) padahal harga lanjut jauh.
+        fvgOf(ex, b, true);
+        chochOf(ex, b);
+        check(near((b.z.top + b.z.bottom) / 2, pos.entry), p + 'entry = 50% zona');
+        check(b.long ? pos.sl < b.z.bottom : pos.sl > b.z.top, p + 'SL di luar sisi jauh zona (hanya TP yang melanggar)');
+        check(rr(pos) < 2 && near(rr(pos), 1), p + 'RR = 1:' + rr(pos) + ' (di bawah 1:2)');
+        var tp2 = pos.entry + (b.long ? 2 : -2) * Math.abs(pos.entry - pos.sl);
+        var ln = lineOf(ex, 'TP 1:2');
+        check(!!ln && near(ln.y, tp2), p + 'garis "TP 1:2" digambar di ' + r2(tp2));
+        check(outcome(cs, pos) === 'TP', p + 'TP 1:1 tercapai (untung kecil)');
+        check(outcome(cs, { side: pos.side, i: pos.i, entry: pos.entry, sl: pos.sl, tp: tp2 }) === 'TP', p + 'harga lanjut sampai RR 1:2 (' + r2(tp2) + ') tanpa kena SL: TP 1:1 terlalu dekat');
+      }
+    });
+
+    /* --- Kapan TIDAK entry --- */
+    EX.noentry.forEach(function (ex) {
+      var b = basics(ex), cs = b.cs, pos = b.pos, p = ex.id + ': ';
+      check(ex.valid === false, p + 'ditandai BELUM VALID');
+      checkPos(ex, b.z, pos); // entry 50%, SL di luar, RR 1:2, hasil SL
+      if (ex.meta.reason === 'zona-tertembus') {
+        var d = fvgOf(ex, b, false);
+        check(!!d && d.breached && d.breachIndex < pos.i, p + 'FVG sudah tertembus body close di candle ' + (d && d.breachIndex) + ' sebelum entry (candle ' + pos.i + ')');
+        check(!!d && cs[d.breachIndex].c < d.bottom && b.z.kind === 'OFF', p + 'candle ' + (d && d.breachIndex) + ' body close di bawah batas bawah zona; zona digambar abu-abu (tidak berlaku)');
+      } else if (ex.meta.reason === 'bias') {
+        fvgOf(ex, b, true);
+        var sw = detectSwings(cs).filter(function (s) { return s.i + K < pos.i; });
+        var hs = sw.filter(function (s) { return s.type === 'H'; }), ls = sw.filter(function (s) { return s.type === 'L'; });
+        check(trendOf(hs, ls) === 'mixed', p + 'struktur saat entry = campuran (bukan uptrend maupun downtrend)');
+        var lab = labelSwings(sw).map(function (x) { return x.label; });
+        check(lab.indexOf('HH') >= 0 && lab.indexOf('LL') >= 0, p + 'ada HH sekaligus LL [' + lab.join(' ') + ']: range melebar');
+        var lbl = labelSwings(detectSwings(cs));
+        ex.overlays.filter(function (o) { return o.type === 'text' && (o.text === 'HH' || o.text === 'LL'); }).forEach(function (o) {
+          check(lbl.some(function (s) { return s.i === o.i && s.label === o.text; }), p + 'tulisan ' + o.text + ' di candle ' + o.i + ' = swing berlabel ' + o.text);
+        });
+      } else if (ex.meta.reason === 'konfirmasi') {
+        fvgOf(ex, b, true);
+        var lv = lineOf(ex, 'HL');
+        check(!!lv && near(lv.y, ex.meta.level) && !b.long, p + 'level HL ' + ex.meta.level + ' digambar (entry SP)');
+        check(cs.every(function (c, k) { return k < 15 || c.c > ex.meta.level; }), p + 'tidak ada body close di bawah HL ' + ex.meta.level + ' (konfirmasi belum ada)');
+        check(!detectBreaks(cs).some(function (x) { return x.kind === 'CHoCH'; }), p + 'deteksi tidak menemukan CHoCH sama sekali');
+      } else check(false, p + 'meta.reason dikenal (' + ex.meta.reason + ')');
+    });
+    check(['zona-tertembus', 'bias', 'konfirmasi'].every(function (r) { return EX.noentry.some(function (e) { return e.meta.reason === r; }); }), 'noentry: contoh chart untuk zona tertembus, bias tidak jelas, dan konfirmasi belum ada');
+
+    /* --- Kelengkapan: materi, contoh, flashcard, glosarium, kuis --- */
+    var ids = ['entry', 'sl', 'tp', 'noentry'];
+    var grp = window.CONCEPTS.filter(function (c) { return c.group === 'Eksekusi'; }).map(function (c) { return c.id; });
+    check(ids.every(function (k) { return grp.indexOf(k) >= 0; }) && grp.length === 4, 'materi: grup Eksekusi berisi entry, sl, tp, noentry (' + grp.join(',') + ')');
+    ['entry', 'sl', 'tp'].forEach(function (k) {
+      var v = EX[k];
+      check(v.filter(function (e) { return e.valid === true && posOf(e).side === 'long'; }).length >= 1 && v.filter(function (e) { return e.valid === true && posOf(e).side === 'short'; }).length >= 1, k + ': ada contoh valid LP dan SP');
+      check(v.filter(function (e) { return e.valid === false; }).length >= 1, k + ': ada contoh BELUM VALID / SALAH');
+    });
+    check(EX.noentry.length >= 1, 'noentry: minimal 1 contoh chart (' + EX.noentry.length + ')');
+    ids.forEach(function (k) {
+      check(window.FLASHCARDS.some(function (c) { return c.id === k; }), 'flashcard: kartu "' + k + '" ada');
+      check(window.GLOSSARY.some(function (g) { return g.link === k; }), 'glosarium: ada istilah yang menaut ke kartu materi "' + k + '"');
+      var nq = window.QUIZ.filter(function (q) { return q.tag === k && q.cat === 'eksekusi'; }).length;
+      check(nq >= 2, 'kuis: tag "' + k + '" punya ' + nq + ' soal di kategori Eksekusi (minimal 2)');
+    });
+    var ke = window.QUIZ.filter(function (q) { return q.cat === 'eksekusi'; });
+    check(ke.length >= 6, 'kuis Eksekusi: ' + ke.length + ' soal (minimal 6)');
+    check(['mc', 'tf', 'zone'].every(function (t) { return ke.some(function (q) { return q.type === t; }); }), 'kuis Eksekusi: ada pilihan ganda, benar/salah, dan tebak zona');
+    var gt = {}; window.GLOSSARY.forEach(function (g) { gt[g.t] = g.link; });
+    check(gt['Entry'] === 'entry' && gt['SL (Stop Loss)'] === 'sl' && gt['TP (Take Profit)'] === 'tp' && gt['RR (Risk Reward)'] === 'tp', 'glosarium: Entry, SL, TP, RR menaut ke kartu Eksekusi masing-masing');
+    function qq(id) { return window.QUIZ.filter(function (q) { return q.id === id; })[0]; }
+    check(qq('e7').options[qq('e7').answer] === String(2000 + 2 * (2000 - 1990)), 'kuis e7: kunci = entry + 2 × risiko (' + qq('e7').options[qq('e7').answer] + ')');
+    check(qq('e8').options[qq('e8').answer] === String(2000 - 2 * (2005 - 2000)), 'kuis e8: kunci SP = entry − 2 × risiko (' + qq('e8').options[qq('e8').answer] + ')');
   })();
 
   /* ===== Jurnal (Tahap 6) ===== */

@@ -32,7 +32,7 @@
     }).then(function (res) {
       var miss = res.filter(function (x) { return !x.ok; }).map(function (x) { return x.f; });
       check(miss.length === 0, files.length + ' file di FILES tersimpan di cache' + (miss.length ? ' (kurang: ' + miss.join(', ') + ')' : ''));
-      ['liquidity', 'premdisc', 'smt'].forEach(function (k) {
+      ['liquidity', 'premdisc', 'smt', 'entry', 'sl', 'tp', 'noentry'].forEach(function (k) {
         check(files.indexOf('./data/examples/' + k + '.js') >= 0, 'FILES memuat data/examples/' + k + '.js');
       });
       done();
