@@ -17,8 +17,8 @@ window.LEVELS = [
     ]
   },
   {
-    id: 'l3', title: 'Level 3 · Lanjut', desc: 'Liquidity, premium/discount, SMT, dan sesi.',
-    sections: [{ h: '', ids: ['liquidity', 'premdisc', 'smt', 'sesi'] }]
+    id: 'l3', title: 'Level 3 · Lanjut', desc: 'Liquidity, premium/discount, SMT, sesi, CISD, QML, inducement, dan AMD.',
+    sections: [{ h: '', ids: ['liquidity', 'premdisc', 'smt', 'sesi', 'cisd', 'qml', 'inducement', 'amd'] }]
   },
   {
     id: 'l4', title: 'Level 4 · Expert', desc: 'Materi expert.',

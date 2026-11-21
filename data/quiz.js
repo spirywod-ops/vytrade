@@ -12,7 +12,7 @@ window.QUIZ_CATS = [
   { id: 'topdown', title: 'Top-down', desc: 'Urutan TF 1D sampai 1m' },
   { id: 'checklist', title: 'Checklist', desc: 'Syarat setup, RR, waktu candle close' },
   { id: 'eksekusi', title: 'Eksekusi', desc: 'Entry, SL, TP RR 1:2, kapan tidak entry' },
-  { id: 'lanjut', title: 'Lanjut', desc: 'Liquidity sweep, premium/discount, SMT, sesi' }
+  { id: 'lanjut', title: 'Lanjut', desc: 'Liquidity sweep, premium/discount, SMT, sesi, CISD, QML, inducement, AMD' }
 ];
 
 window.QUIZ = [
@@ -332,5 +332,62 @@ window.QUIZ = [
     expl: 'Breaker butuh body close melewati sisi jauh OB. Kalau hanya wick, OB masih hidup dan zonanya belum berbalik peran.' },
   { id: 'b3', cat: 'zona', type: 'mc', tag: 'breaker', q: 'OB bearish sudah ditembus body close ke atas dan jadi breaker bullish. Di mana entry LP ditaruh?',
     options: ['Di titik tengah zona saat harga kembali', 'Di atas zona saat baru tembus', 'Di bawah SL', 'Di tengah candle penembus'], answer: 0,
-    expl: 'Seperti IFVG, tunggu harga kembali ke zona lalu entry di titik tengah (50%). SL ditaruh di luar sisi jauh zona.' }
+    expl: 'Seperti IFVG, tunggu harga kembali ke zona lalu entry di titik tengah (50%). SL ditaruh di luar sisi jauh zona.' },
+
+  /* ---------- Tahap 9: Level 3 baru (CISD, QML, inducement & turtle soup, AMD) ---------- */
+  { id: 'cs1', cat: 'lanjut', type: 'mc', tag: 'cisd', q: 'Apa yang menandai CISD bullish?',
+    options: ['Wick di atas open candle terakhir rangkaian', 'Body close di atas open candle turun pertama dari rangkaian turun', 'Candle naik pertama setelah low', 'Harga menyentuh FVG'], answer: 1,
+    expl: 'Setelah rangkaian candle turun, CISD bullish terjadi saat body close melewati open candle pertama rangkaian itu ke atas. Wick saja belum cukup.' },
+  { id: 'cs2', cat: 'lanjut', type: 'tf', tag: 'cisd', q: 'Wick yang melewati open acuan sudah cukup untuk menyatakan CISD.', answer: false,
+    expl: 'CISD butuh body close melewati open acuan. Kalau hanya wick, state of delivery belum berganti.' },
+  { id: 'cs3', cat: 'lanjut', type: 'mc', tag: 'cisd', q: 'CISD bullish sudah terkonfirmasi. Di mana entry LP dicari?',
+    options: ['Di open acuan tanpa zona', 'Di atas high candle penembus', 'Di FVG/OB yang tercipta dari gerakan CISD', 'Di tengah candle yang belum close'], answer: 2,
+    expl: 'CISD hanya konfirmasi. Entry tetap di FVG/OB yang tercipta dari gerakan CISD, setelah candle penembus close.' },
+  { id: 'cs4', cat: 'lanjut', type: 'mc', tag: 'cisd', q: 'Open acuan untuk CISD bearish adalah?',
+    options: ['Open candle naik pertama dari rangkaian candle naik', 'Close candle naik terakhir', 'High tertinggi rangkaian', 'Low candle penembus'], answer: 0,
+    expl: 'Bearish CISD: setelah rangkaian candle naik, body close di bawah open candle naik pertama rangkaian itu.' },
+  { id: 'cs5', cat: 'lanjut', type: 'tf', tag: 'cisd', q: 'CISD cukup menjadi sinyal tunggal untuk entry.', answer: false,
+    expl: 'CISD hanya konfirmasi di TF entry, biasanya setelah sweep. Entry tetap butuh FVG/OB.' },
+
+  { id: 'qm1', cat: 'lanjut', type: 'mc', tag: 'qml', q: 'Pada QML bearish, di level mana harga diharapkan bereaksi setelah CHoCH?',
+    options: ['Low terendah setelah CHoCH', 'High head', 'High left shoulder (high sebelum head)', 'Titik tengah range'], answer: 2,
+    expl: 'QML bearish adalah level high left shoulder, yaitu high sebelum head. Harga kembali ke sana setelah CHoCH bearish.' },
+  { id: 'qm2', cat: 'lanjut', type: 'tf', tag: 'qml', q: 'QML sudah sah begitu head terbentuk, sebelum ada CHoCH.', answer: false,
+    expl: 'Tanpa CHoCH (body close melewati HL/LH terakhir) level itu belum sah. Head saja belum cukup.' },
+  { id: 'qm3', cat: 'lanjut', type: 'mc', tag: 'qml', q: 'Urutan QML bearish yang benar?',
+    options: ['CHoCH bearish, head, lalu kembali ke high left shoulder', 'HH dan HL, head (higher high), CHoCH bearish, kembali ke high left shoulder', 'Head, kembali ke left shoulder, lalu CHoCH', 'Sweep, BOS, lalu head'], answer: 1,
+    expl: 'Uptrend dulu (HH dan HL), harga membuat head, CHoCH bearish dengan body close, lalu harga kembali ke high left shoulder sebagai QML.' },
+  { id: 'qm4', cat: 'lanjut', type: 'mc', tag: 'qml', q: 'Harga kembali ke level QML, tetapi tidak ada FVG atau OB di area itu. Keputusan yang sesuai?',
+    options: ['Entry langsung di garis QML', 'Entry di atas head', 'Entry di tengah candle yang belum close', 'Tidak entry; tunggu zona atau lewati setup'], answer: 3,
+    expl: 'Entry tetap hanya di FVG/OB. Tanpa zona di area QML, setup dilewati.' },
+  { id: 'qm5', cat: 'lanjut', type: 'tf', tag: 'qml', q: 'Wick yang melewati LH atau HL terakhir cukup sebagai CHoCH pada pola QML.', answer: false,
+    expl: 'CHoCH wajib body close. Wick yang melewati level hanya sweep, jadi pola QML belum terbentuk.' },
+
+  { id: 'in1', cat: 'lanjut', type: 'mc', tag: 'inducement', q: 'Inducement adalah?',
+    options: ['Candle terbesar sebelum BOS', 'FVG yang sudah tertembus', 'Level equal high di sesi Asia', 'Swing minor antara harga dan zona yang disapu dulu sebelum harga bereaksi di zona'], answer: 3,
+    expl: 'Inducement adalah pullback kecil antara harga dan zona FVG/OB yang disapu dulu. Ia menjebak trader yang masuk terlalu awal.' },
+  { id: 'in2', cat: 'lanjut', type: 'tf', tag: 'inducement', q: 'Turtle soup butuh body close kembali ke dalam level setelah wick melewatinya.', answer: true,
+    expl: 'Turtle soup: wick melewati high/low penting, lalu body close kembali ke dalam. Entry dicari berlawanan arah tembusan di FVG/OB berikutnya.' },
+  { id: 'in3', cat: 'lanjut', type: 'mc', tag: 'inducement', q: 'Body close bertahan di bawah low Asia selama dua candle. Itu disebut?',
+    options: ['Turtle soup bullish', 'BOS turun, bukan turtle soup', 'Inducement', 'Premium'], answer: 1,
+    expl: 'Body close yang bertahan di luar level adalah BOS. Turtle soup membutuhkan body close kembali ke dalam.' },
+  { id: 'in4', cat: 'lanjut', type: 'mc', tag: 'inducement', q: 'Apa beda turtle soup dengan liquidity sweep biasa?',
+    options: ['Turtle soup menekankan level besar atau level sesi, misalnya high/low Asia', 'Turtle soup tidak butuh body close kembali ke dalam', 'Turtle soup hanya terjadi di sesi New York', 'Turtle soup selalu entry di ujung wick'], answer: 0,
+    expl: 'Sifat dasarnya sama (wick menembus, close kembali ke dalam). Turtle soup menekankan level besar atau level sesi.' },
+  { id: 'in5', cat: 'lanjut', type: 'tf', tag: 'inducement', q: 'Setelah turtle soup, entry dicari berlawanan arah tembusan di FVG/OB berikutnya.', answer: true,
+    expl: 'Turtle soup hanya konteks. Entry tetap di FVG/OB, berlawanan arah dengan tembusan.' },
+
+  { id: 'am1', cat: 'lanjut', type: 'mc', tag: 'amd', q: 'Urutan fase AMD yang benar?',
+    options: ['Expansion, range, sweep', 'Sweep, expansion, range', 'Range, sweep atau fakeout, expansion', 'Range, expansion, sweep'], answer: 2,
+    expl: 'Accumulation (range), Manipulation (sweep atau fakeout), lalu Distribution (expansion ke arah sebenarnya).' },
+  { id: 'am2', cat: 'lanjut', type: 'tf', tag: 'amd', q: 'AMD tetap valid walau tidak ada sweep sebelum expansion.', answer: false,
+    expl: 'Sweep (fase M) wajib ada sebelum expansion. Tanpa sweep, itu hanya dorongan biasa yang mudah gagal.' },
+  { id: 'am3', cat: 'lanjut', type: 'mc', tag: 'amd', q: 'Fase M menyapu low range lalu body close kembali di dalam. Expansion yang diharapkan?',
+    options: ['Turun, menembus low range', 'Naik, menembus high range', 'Sideways lagi', 'Tidak ada arah'], answer: 1,
+    expl: 'Manipulasi ke satu sisi berlawanan dengan tujuan. Sweep di low, jadi expansion mengarah naik ke sisi sebaliknya.' },
+  { id: 'am4', cat: 'lanjut', type: 'tf', tag: 'amd', q: 'Asia pasti range, London pasti manipulasi, dan New York pasti distribusi.', answer: false,
+    expl: 'Itu hanya kecenderungan, bukan aturan. Fase dinilai dari candle: range, sweep, lalu expansion.' },
+  { id: 'am5', cat: 'lanjut', type: 'mc', tag: 'amd', q: 'Di mana entry dicari setelah expansion pada AMD?',
+    options: ['Di tengah range', 'Di FVG/OB yang tertinggal oleh expansion', 'Di ujung wick sweep', 'Di candle expansion saat belum close'], answer: 1,
+    expl: 'AMD hanya konteks. Entry tetap di FVG/OB yang tertinggal oleh expansion, setelah candle close.' }
 ];

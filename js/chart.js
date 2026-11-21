@@ -7,8 +7,10 @@
    - text:     {type:'text', i, y, dy, text, anchor}
    - mark:     {type:'mark', i, y, label, color, pos:'above'|'below'}   (lingkaran penanda: titik sweep, titik divergensi SMT)
    - seg:      {type:'seg', i1, y1, i2, y2, label, color, dash}         (garis miring antar dua titik, mis. HH di satu aset vs LH di aset lain)
+   - band:     {type:'band', i1, i2, label, color, labelAt:'bottom'}   (pita fase vertikal di belakang candle, mis. fase A/M/D pada AMD; label di atas, atau di bawah bila labelAt:'bottom')
    zone: `labelPos:'above'` menaruh label di atas sisi atas zona (menghindari panah Entry).
    Zona tambahan: kind 'PREM' (premium, merah), 'DISC' (discount, hijau), dan 'BB' (breaker block, teal); `opacity` opsional.
+   spec.from (opsional): tampilkan candle mulai indeks ini saja (indeks data dan overlay tidak berubah; overlay yang seluruhnya di kiri `from` tidak digambar).
    renderPair(container, spec): dua chart bersusun (spec.pair = {symbol, tf, candles, overlays}) untuk SMT; satu tombol zona untuk keduanya.
 */
 (function (global) {
@@ -62,7 +64,12 @@
   }
 
   function render(container, spec) {
-    var cs = spec.candles, n = cs.length, ovs = spec.overlays || [], H = spec.h || H_DEF;
+    var off = spec.from || 0, cs = spec.candles.slice(off), n = cs.length, allOvs = spec.overlays || [], H = spec.h || H_DEF;
+    // overlay yang seluruhnya berada di kiri jendela tampilan (indeks < off) dibuang
+    var ovs = allOvs.filter(function (o) {
+      var m = Math.max(typeof o.i === 'number' ? o.i : -1, typeof o.i1 === 'number' ? o.i1 : -1, typeof o.i2 === 'number' ? o.i2 : -1);
+      return m < 0 || m >= off;
+    });
     var plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
     var step = plotW / n, bw = Math.max(3, step * 0.58);
 
@@ -76,7 +83,8 @@
     var padv = (hi - lo) * 0.05;
     hi += padv; lo -= padv;
 
-    function x(i) { return PAD.l + (i + 0.5) * step; }
+    function x(i) { return PAD.l + (i - off + 0.5) * step; }
+    function xl(i) { return Math.max(PAD.l, x(i)); } // tepi kiri yang tidak keluar dari area gambar
     function y(p) { return PAD.t + (hi - p) / (hi - lo) * plotH; }
 
     var svg = el('svg', {
@@ -99,21 +107,32 @@
     ovs.forEach(function (o) {
       if (o.type !== 'zone') return;
       var col = COLORS[o.kind] || COLORS.OFF;
-      var x1 = x(o.i1) - step / 2, x2 = Math.min(W - PAD.r, x(o.i2) + step / 2);
+      var x1 = Math.max(PAD.l, x(o.i1) - step / 2), x2 = Math.min(W - PAD.r, x(o.i2) + step / 2);
       zoneRects.push({ kind: o.kind, x1: x1, x2: x2, y1: y(o.top), y2: y(o.bottom) });
       el('rect', {
         x: x1, y: y(o.top), width: x2 - x1, height: Math.max(1, y(o.bottom) - y(o.top)),
         fill: col, 'fill-opacity': typeof o.opacity === 'number' ? o.opacity : 0.2, stroke: col, 'stroke-width': 1, 'stroke-dasharray': '3 2'
       }, gz);
-      var lx = typeof o.labelI === 'number' ? x(o.labelI) - step / 2 + 3 : x1 + 3;
+      var lx = typeof o.labelI === 'number' ? Math.max(x1, x(o.labelI) - step / 2) + 3 : x1 + 3;
       var lt = el('text', { x: lx, y: o.labelPos === 'above' ? y(o.top) - 3 : y(o.top) + 10, 'class': 't-label', fill: col }, gz);
       lt.textContent = o.label || o.kind;
     });
 
+    // pita fase (di belakang candle, ikut tombol zona)
+    ovs.forEach(function (o) {
+      if (o.type !== 'band') return;
+      var bc = o.color || COLORS.OFF, bx1 = Math.max(PAD.l, x(o.i1) - step / 2), bx2 = Math.min(W - PAD.r, x(o.i2) + step / 2);
+      el('rect', { x: bx1, y: PAD.t, width: bx2 - bx1, height: plotH, fill: bc, 'fill-opacity': 0.09, stroke: bc, 'stroke-width': 0.8, 'stroke-opacity': 0.5 }, gz);
+      if (o.label) {
+        var bt = el('text', { x: (bx1 + bx2) / 2, y: o.labelAt === 'bottom' ? PAD.t + plotH - 5 : PAD.t + 11, 'text-anchor': 'middle', 'class': 't-label', fill: bc }, gz);
+        bt.textContent = o.label;
+      }
+    });
+
     // candle
     var gc = el('g', null, svg);
-    cs.forEach(function (c, i) {
-      var up = c.c >= c.o, cls = up ? 'up' : 'dn';
+    cs.forEach(function (c, i0) {
+      var i = i0 + off, up = c.c >= c.o, cls = up ? 'up' : 'dn';
       el('line', { x1: x(i), x2: x(i), y1: y(c.h), y2: y(c.l), 'class': 'wick ' + cls }, gc);
       var top = y(Math.max(c.o, c.c)), bot = y(Math.min(c.o, c.c));
       el('rect', { x: x(i) - bw / 2, y: top, width: bw, height: Math.max(1, bot - top), 'class': 'body ' + cls }, gc);
@@ -124,7 +143,7 @@
     ovs.forEach(function (o) {
       var tx;
       if (o.type === 'position') {
-        var x1 = x(o.i) - step / 2, x2 = Math.min(W - PAD.r, x(o.i2) + step / 2), w = x2 - x1;
+        var x1 = Math.max(PAD.l, x(o.i) - step / 2), x2 = Math.min(W - PAD.r, x(o.i2) + step / 2), w = x2 - x1;
         var long = o.side === 'long';
         el('rect', { x: x1, y: Math.min(y(o.entry), y(o.tp)), width: w, height: Math.abs(y(o.tp) - y(o.entry)), fill: COLORS.TP, 'fill-opacity': 0.22, stroke: COLORS.TP, 'stroke-width': 0.8 }, ga);
         el('rect', { x: x1, y: Math.min(y(o.entry), y(o.sl)), width: w, height: Math.abs(y(o.sl) - y(o.entry)), fill: COLORS.SL, 'fill-opacity': 0.22, stroke: COLORS.SL, 'stroke-width': 0.8 }, ga);
@@ -137,12 +156,12 @@
         tx.textContent = 'SL ' + fmt(o.sl);
       } else if (o.type === 'line') {
         var lc = o.color || COLORS.LINE;
-        el('line', { x1: x(o.i1), x2: x(o.i2), y1: y(o.y), y2: y(o.y), stroke: lc, 'stroke-width': 1, 'stroke-dasharray': o.dash === false ? '' : '4 3' }, ga);
+        el('line', { x1: xl(o.i1), x2: x(o.i2), y1: y(o.y), y2: y(o.y), stroke: lc, 'stroke-width': 1, 'stroke-dasharray': o.dash === false ? '' : '4 3' }, ga);
         if (o.label) {
           // pos: 'above' (default) | 'below' = label di atas/bawah garis; labelAt: 'start' = di ujung kiri garis.
           var atStart = o.labelAt === 'start';
           tx = el('text', {
-            x: atStart ? x(o.i1) : x(o.i2), y: y(o.y) + (o.pos === 'below' ? 11 : -3),
+            x: atStart ? xl(o.i1) : x(o.i2), y: y(o.y) + (o.pos === 'below' ? 11 : -3),
             'text-anchor': atStart ? 'start' : 'end', 'class': 't-label', fill: lc
           }, ga);
           tx.textContent = o.label;

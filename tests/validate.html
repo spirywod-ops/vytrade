@@ -26,6 +26,10 @@
 <script src="../data/examples/consolidation.js"></script>
 <script src="../data/examples/reversal.js"></script>
 <script src="../data/examples/breaker.js"></script>
+<script src="../data/examples/cisd.js"></script>
+<script src="../data/examples/qml.js"></script>
+<script src="../data/examples/inducement.js"></script>
+<script src="../data/examples/amd.js"></script>
 <script src="../data/topdown.js"></script>
 <script src="../data/setup.js"></script>
 <script src="../data/quiz.js"></script>
@@ -1605,7 +1609,7 @@
     var l2 = ids(L[1]);
     check(['bos', 'choch', 'bos-vs-choch', 'fvg', 'ifvg', 'ob', 'topdown', 'entry', 'sl', 'tp', 'noentry', 'expansion', 'consolidation', 'reversal', 'breaker'].every(function (k) { return l2.indexOf(k) >= 0; }) && l2.length === 15, 'peta Level 2: BOS, CHoCH, BOS vs CHoCH, FVG, IFVG, OB, Top-down, Eksekusi (4 kartu) + 4 baru = 15 kartu');
     check(L[1].sections.filter(function (s) { return s.h === 'Eksekusi'; })[0].ids.join() === 'entry,sl,tp,noentry', 'peta Level 2: bagian Eksekusi berisi entry, sl, tp, noentry');
-    check(ids(L[2]).join() === 'liquidity,premdisc,smt,sesi', 'peta Level 3: Liquidity sweep, Premium & Discount, SMT, Sesi');
+    check(ids(L[2]).join() === 'liquidity,premdisc,smt,sesi,cisd,qml,inducement,amd', 'peta Level 3: Liquidity sweep, Premium & Discount, SMT, Sesi + 4 baru (CISD, QML, Inducement & turtle soup, AMD) = 8 kartu');
     check(L[3].soon === true && ids(L[3]).length === 0, 'peta Level 4: Segera hadir (belum ada kartu)');
     var seen = {}, dupIds = [], all = VP.allIds();
     all.forEach(function (id) { if (seen[id]) dupIds.push(id); seen[id] = true; });
@@ -1623,6 +1627,7 @@
     check(VP.levelStats(L[0], { candlestick: true, swing: true, hammer: true, engulfing: true, doji: true }).pct === 100, 'progres peta: semua kartu Level 1 dibuka = 100%');
     check(VP.levelStats(L[1], { bos: true, fvg: true, breaker: true }).pct === 20 && VP.levelStats(L[1], { bos: true }).pct === 7, 'progres peta: pembulatan persen Level 2 (3/15 = 20%, 1/15 = 7%)');
     check(VP.levelStats(L[0], { liquidity: true, sesi: true }).done === 0, 'progres peta: kartu level lain tidak dihitung di level ini');
+    check(VP.levelStats(L[2], { liquidity: true, cisd: true }).pct === 25 && VP.levelStats(L[2], { liquidity: true }).pct === 13 && VP.levelStats(L[2], { liquidity: true, premdisc: true, smt: true, sesi: true, cisd: true, qml: true, inducement: true, amd: true }).pct === 100 && VP.levelStats(L[2], {}).total === 8, 'progres peta: Level 3 (8 kartu): 2 dibuka = 25%, 1 dibuka = 13%, semua = 100%');
     check(VP.levelStats(L[3], { bos: true }).pct === null && VP.levelStats(L[3], {}).total === 0, 'progres peta: Level 4 tanpa kartu -> persen kosong (Segera hadir)');
     var st = fakeSt();
     check(VP.markOpened('fvg', st) === true && VP.markOpened('fvg', st) === false && VP.load(st).opened.fvg === true, 'progres peta: kartu ditandai dibuka sekali (pemanggilan kedua tidak mengubah)');
@@ -1657,6 +1662,314 @@
     var exOld = J.buildBackup(fakeSt({ 'vytrade.progress': JSON.stringify(old) }), 1);
     check(exOld.data.progress.v === 2 && exOld.data.progress.best.dasar.score === 5, 'ekspor dari data lokal lama (tanpa v): progres sudah dalam skema baru');
     check(J.buildBackup(fakeSt(), 1).data.progress === null, 'ekspor tanpa data progres: tetap null (tidak berubah jadi data kosong)');
+
+    /* ===== Tahap 9: Level 3 baru (CISD, QML, inducement & turtle soup, AMD) ===== */
+    (function () {
+      function dirOf(c) { return c.c > c.o ? 1 : c.c < c.o ? -1 : 0; }
+      function mirrorCs(cs) { return window.VyData.mirror(cs); }
+
+      /* ---------- Detektor (definisi baku CLAUDE.md) ---------- */
+      // Rangkaian candle searah (minimal 2 candle, maksimal/tak bisa diperpanjang). dir: -1 turun, 1 naik.
+      function runs(cs) {
+        var out = [], i = 0;
+        while (i < cs.length) {
+          var d = dirOf(cs[i]), j = i;
+          if (!d) { i++; continue; }
+          while (j + 1 < cs.length && dirOf(cs[j + 1]) === d) j++;
+          if (j > i) out.push({ first: i, last: j, dir: d });
+          i = j + 1;
+        }
+        return out;
+      }
+      // CISD: setelah rangkaian searah yang membentuk swing (low untuk rangkaian turun, high untuk rangkaian naik), ada candle (maksimal 3 candle setelah
+      // rangkaian) yang BODY CLOSE-nya melewati OPEN candle pertama rangkaian ke arah berlawanan. Wick saja tidak dihitung.
+      function detectCISD(cs) {
+        var sw = detectSwings(cs), out = [];
+        runs(cs).forEach(function (r) {
+          var ref = cs[r.first].o, ext = r.first, k;
+          for (k = r.first; k <= r.last; k++) if (r.dir < 0 ? cs[k].l < cs[ext].l : cs[k].h > cs[ext].h) ext = k;
+          var isSw = sw.some(function (s) { return s.i === ext && s.type === (r.dir < 0 ? 'L' : 'H'); });
+          for (k = r.last + 1; k <= Math.min(cs.length - 1, r.last + 3); k++) {
+            if (r.dir < 0 ? cs[k].c > ref : cs[k].c < ref) {
+              out.push({ first: r.first, last: r.last, trigger: k, dir: r.dir < 0 ? 'bull' : 'bear', ref: ref, ext: ext, swing: isSw, len: r.last - r.first + 1 });
+              break;
+            }
+          }
+        });
+        return out;
+      }
+      // QML: CHoCH (body close melewati LH/HL terakhir), head = ekstrem antara LH/HL itu dan candle CHoCH yang melewati left shoulder
+      // (swing sejenis sebelumnya), level QML = harga left shoulder. bull: downtrend, head = lower low, QML = low left shoulder. bear: kebalikannya.
+      function detectQML(cs) {
+        var sw = detectSwings(cs), out = [];
+        detectBreaks(cs).filter(function (e) { return e.kind === 'CHoCH'; }).forEach(function (e) {
+          var bull = e.dir === 'up', lsType = bull ? 'L' : 'H', ls = null, hd = -1, k;
+          sw.forEach(function (s) { if (s.type === lsType && s.i < e.levelIdx && s.i + K < e.j) ls = s; });
+          if (!ls) return;
+          for (k = e.levelIdx + 1; k < e.j; k++) if (hd < 0 || (bull ? cs[k].l < cs[hd].l : cs[k].h > cs[hd].h)) hd = k;
+          if (hd < 0) return;
+          var beyond = bull ? cs[hd].l < ls.price : cs[hd].h > ls.price;
+          if (beyond) out.push({ dir: bull ? 'bull' : 'bear', ls: ls.i, lh: e.levelIdx, head: hd, choch: e.j, qml: ls.price, lhPrice: e.level });
+        });
+        return out;
+      }
+      // Swing minor (inducement), orientasi bullish: low yang lebih rendah dari candle kiri-kanannya (K=1) tetapi BUKAN swing utama (K=2).
+      function isMinorLow(cs, i) {
+        if (i < 1 || i + 1 >= cs.length) return false;
+        var k1 = cs[i].l < cs[i - 1].l && cs[i].l < cs[i + 1].l;
+        var major = detectSwings(cs).some(function (s) { return s.i === i && s.type === 'L'; });
+        return k1 && !major;
+      }
+      // Turtle soup, orientasi bullish: wick menembus level (low < level) lalu body close kembali ke dalam (close > level).
+      function isTurtle(c, level) { return c.l < level && c.c > level; }
+      // AMD, orientasi bullish (sweep di low range, expansion naik): range ok; kandidat pertama yang keluar range lewat wick harus SWEEP (close kembali ke dalam);
+      // setelah itu expansion pertama (ekspansi menurut definisi baku) yang body close di atas high range. null kalau tidak ada sweep sebelum expansion.
+      function detectAMDUp(cs, from, to) {
+        var ci = consInfo(cs, from, to), k;
+        if (!ci.ok) return null;
+        for (k = to + 1; k < cs.length; k++) {
+          var c = cs[k];
+          if (c.l < ci.bottom || c.h > ci.top) {
+            if (!(c.l < ci.bottom && c.c > ci.bottom && c.h <= ci.top)) return null; // keluar bukan lewat sweep di low (mis. breakout atas)
+            break;
+          }
+        }
+        if (k >= cs.length) return null;
+        for (var e = k + 1; e < cs.length; e++) {
+          if (expInfo(cs, e).ok) return (expInfo(cs, e).dir === 'up' && cs[e].c > ci.top) ? { sweep: k, exp: e, top: ci.top, bottom: ci.bottom } : null;
+        }
+        return null;
+      }
+
+      /* ---------- Uji detektor dengan candle sintetis (batas aturan) ---------- */
+      (function () {
+        function C(o, h, l, c) { return { o: o, h: h, l: l, c: c }; }
+        // 0-1 naik (area atas), 2-4 turun (rangkaian, open candle 2 = 12), 5-8 pantulan; swing low di candle 4
+        function seq(trig) {
+          return [C(10, 12.2, 9.8, 12), C(12, 12.6, 11.8, 12.2), C(12, 12.2, 11, 11.4), C(11.4, 11.6, 10.6, 10.9), C(10.9, 11, 9.5, 10),
+                  trig, C(11.5, 12, 11.4, 11.8), C(11.8, 12.1, 11.7, 11.9), C(11.9, 12, 11.8, 11.95)];
+        }
+        var okC = detectCISD(seq(C(10, 12.6, 9.9, 12.3)))[0], wickC = detectCISD(seq(C(10, 12.6, 9.9, 11.9)));
+        check(!!okC && okC.dir === 'bull' && okC.first === 2 && okC.last === 4 && okC.trigger === 5 && okC.ref === 12 && okC.swing, 'detektor CISD: body close di atas open candle turun pertama (12) = bullish CISD');
+        check(wickC.filter(function (x) { return x.first === 2; }).length === 0, 'detektor CISD: wick di atas open acuan tetapi body close 11.9 di bawahnya = BUKAN CISD');
+        var eq = detectCISD(seq(C(10, 12.6, 9.9, 12)));
+        check(eq.filter(function (x) { return x.first === 2; }).length === 0, 'detektor CISD: body close tepat di open acuan (belum melewati) = BUKAN CISD');
+        check(detectCISD(mirrorCs(seq(C(10, 12.6, 9.9, 12.3)))).filter(function (x) { return x.first === 2 && x.dir === 'bear'; }).length === 1, 'detektor CISD: cermin (rangkaian naik, body close di bawah open acuan) = bearish CISD');
+        check(runs([C(10, 11, 9, 10.5), C(10.5, 11, 10, 10.2), C(10.2, 10.6, 10, 10.2), C(10.2, 11, 10, 10.8)]).length === 0, 'detektor rangkaian: candle doji (open = close) memutus rangkaian, rangkaian 1 candle tidak dihitung');
+        // QML sintetis (downtrend): swing high 2 (23) dan 8 (17.5 = LH), swing low 5 (12 = left shoulder) dan 11 (9 = head, lebih rendah dari 12).
+        // Candle 14 = CHoCH bila body close di atas LH 17.5. `tail` = candle setelah 14.
+        function qmlSeq(chochClose, chochHigh, tail) {
+          return [C(20, 21, 19.5, 20.5), C(20.5, 21.5, 20, 21), C(21, 23, 20.8, 21.5), C(21.5, 21.8, 18, 18.5), C(18.5, 19, 14, 14.5), C(14.5, 15, 12, 12.5),
+                  C(12.5, 15.5, 12.3, 15), C(15, 17, 14.5, 16.5), C(16.5, 17.5, 16, 16.8), C(16.8, 17, 13.5, 14), C(14, 14.5, 10.5, 11), C(11, 11.5, 9, 9.8),
+                  C(9.8, 12, 9.5, 11.5), C(11.5, 13.5, 11, 13), C(13, chochHigh, 12.8, chochClose)].concat(tail);
+        }
+        var upTail = [C(18.5, 19.5, 18, 19), C(19, 20, 18.5, 19.8)], dnTail = [C(17.2, 17.3, 15, 15.5), C(15.5, 16, 14, 14.5)];
+        var q1 = detectQML(qmlSeq(18.5, 18.8, upTail)), q2 = detectQML(qmlSeq(17.2, 18.8, dnTail));
+        check(q1.length === 1 && q1[0].dir === 'bull' && q1[0].ls === 5 && q1[0].lh === 8 && q1[0].head === 11 && q1[0].choch === 14 && q1[0].qml === 12, 'detektor QML: head (low 9 < low LS 12), CHoCH body close di atas LH 17.5, level QML = low left shoulder (12)');
+        check(q2.length === 0, 'detektor QML: wick di atas LH tetapi body close 17.2 di bawahnya = tidak ada CHoCH, tidak ada QML');
+        check(detectQML(mirrorCs(qmlSeq(18.5, 18.8, upTail))).filter(function (x) { return x.dir === 'bear' && x.qml === window.VyData.mp(12); }).length === 1, 'detektor QML: cermin = QML bearish (head = higher high, level = high left shoulder)');
+        // inducement: low minor di 3 (K=1), bukan swing utama karena candle 5 lebih rendah dalam 2 candle ke kanan
+        var im = [C(10, 11, 9.5, 10.6), C(10.6, 11, 9.2, 9.6), C(9.6, 10.2, 8.9, 9.1), C(9.1, 10, 8.8, 9.7), C(9.7, 10.1, 8.9, 9.2), C(9.2, 9.5, 8, 8.2), C(8.2, 9, 7.8, 8.9)];
+        check(isMinorLow(im, 3) && !isMinorLow(im, 2) && !isMinorLow(im, 5), 'detektor inducement: low minor (K=1, bukan swing utama) dikenali');
+        var mj = [C(9, 9.5, 9, 9.2), C(9.2, 9.4, 8.5, 8.8), C(8.8, 9, 7, 7.5), C(7.5, 8.5, 7.4, 8.2), C(8.2, 9, 8, 8.8)];
+        check(!isMinorLow(mj, 2), 'detektor inducement: swing utama (K=2) bukan inducement');
+        check(isTurtle(C(5, 6, 3.9, 5.5), 4) && !isTurtle(C(5, 6, 4.1, 5.5), 4) && !isTurtle(C(5, 5.2, 3.5, 3.8), 4), 'detektor turtle soup: wick menembus + body close kembali ke dalam = ya; wick tidak menembus / body close tetap di luar = bukan');
+        // AMD sintetis memakai data contoh: variasi kecil
+        var base = window.EXAMPLES.amd[0].candles.map(function (c) { return { o: c.o, h: c.h, l: c.l, c: c.c }; });
+        check(!!detectAMDUp(base, 0, 11) && detectAMDUp(base, 0, 11).sweep === 12 && detectAMDUp(base, 0, 11).exp === 14, 'detektor AMD: range (0-11), sweep di low (12), expansion naik (14) dikenali');
+        var noSweep = base.map(function (c) { return { o: c.o, h: c.h, l: c.l, c: c.c }; });
+        noSweep[12] = { o: 2649.5, h: 2650.5, l: 2648.9, c: 2650 };
+        check(detectAMDUp(noSweep, 0, 11) === null, 'detektor AMD: candle manipulasi diganti candle di dalam range = tidak ada sweep, BUKAN AMD');
+        var brk = base.map(function (c) { return { o: c.o, h: c.h, l: c.l, c: c.c }; });
+        brk[12] = { o: 2649.5, h: 2656, l: 2649, c: 2655.5 };
+        check(detectAMDUp(brk, 0, 11) === null, 'detektor AMD: keluar range lewat body close (breakout) tanpa sweep = BUKAN AMD');
+        var rg = base.slice(0, 5);
+        check(detectAMDUp(rg, 0, 4) === null, 'detektor AMD: range kurang dari 8 candle ditolak');
+      })();
+
+      /* ---------- CISD ---------- */
+      bullbear('cisd', ['cisd-bull', 'cisd-bear', 'cisd-bad']);
+      EX.cisd.forEach(function (ex) {
+        var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long';
+        var det = detectCISD(cs).filter(function (x) { return x.first === mt.first; })[0];
+        var ln = lineOf(ex, 'Open acuan');
+        check(!!ln && ln.i1 === mt.first && near(ln.y, mt.ref) && near(cs[mt.first].o, mt.ref), p + 'garis "Open acuan" di open candle pertama rangkaian (candle ' + mt.first + ', ' + mt.ref + ')');
+        var allSame = true; for (var k = mt.first; k <= mt.last; k++) if (dirOf(cs[k]) !== (long ? -1 : 1)) allSame = false;
+        check(allSame && mt.last - mt.first + 1 >= 3, p + 'candle ' + mt.first + '–' + mt.last + ' searah (' + (long ? 'turun' : 'naik') + ' berurutan), ' + (mt.last - mt.first + 1) + ' candle');
+        check(dirOf(cs[mt.first - 1]) === (long ? 1 : -1), p + 'rangkaian mulai di candle ' + mt.first + ' (candle sebelumnya berlawanan arah)');
+        var sw = detectSwings(cs).filter(function (s) { return s.type === (long ? 'L' : 'H'); }).map(function (s) { return s.i; });
+        var ext = mt.first; for (k = mt.first; k <= mt.last; k++) if (long ? cs[k].l < cs[ext].l : cs[k].h > cs[ext].h) ext = k;
+        check(sw.indexOf(ext) >= 0, p + 'rangkaian berakhir di swing ' + (long ? 'low' : 'high') + ' (candle ' + ext + ')');
+        if (ex.valid) {
+          check(!!det && det.trigger === mt.trigger && det.dir === (long ? 'bull' : 'bear') && det.swing, p + 'deteksi: ' + (long ? 'bullish' : 'bearish') + ' CISD, body close candle ' + mt.trigger + ' melewati open acuan');
+          check(long ? cs[mt.trigger].c > mt.ref : cs[mt.trigger].c < mt.ref, p + 'candle ' + mt.trigger + ' punya BODY CLOSE (' + cs[mt.trigger].c + ') melewati open acuan ' + mt.ref);
+          check(sweepAt(cs, mt.last, long ? 'bull' : 'bear'), p + 'rangkaian berakhir di sweep ' + (long ? 'low' : 'high') + ' (wick melewati ekstrem 20 candle, close kembali)');
+          check(ex.overlays.some(function (o) { return o.type === 'text' && o.text === 'CISD' && o.i === mt.trigger; }) && ex.overlays.some(function (o) { return o.type === 'band' && o.label === 'Delivery' && o.i1 === mt.first && o.i2 === mt.last; }), p + 'label CISD di candle penembus dan pita Delivery menutupi candle ' + mt.first + '–' + mt.last);
+          var z = zoneChecks(ex, pos, p);
+          check(!!z && z.kind === 'FVG' && z.i1 + 1 === mt.trigger, p + 'FVG terbentuk dari gerakan CISD (candle tengah FVG = candle penembus ' + mt.trigger + ')');
+          var d = VyChart.detectFVG(cs).filter(function (f) { return f.i1 === z.i1; })[0];
+          check(!!d && pos.i > mt.trigger && firstTouch(cs, d.i3 + 1, pos.entry) === pos.i, p + 'entry SETELAH candle CISD close, saat retest pertama ke 50% FVG (candle ' + pos.i + ')');
+          check(near(cs[mt.first].o, det.ref), p + 'open acuan = open candle pertama rangkaian');
+        } else {
+          check(!det && mt.trigger === -1, p + 'deteksi: tidak ada CISD untuk rangkaian candle ' + mt.first + '–' + mt.last);
+          var w = cs[mt.last + 1];
+          check(long ? (w.h > mt.ref && w.c < mt.ref && Math.max(w.o, w.c) < mt.ref) : (w.l < mt.ref && w.c > mt.ref && Math.min(w.o, w.c) > mt.ref), p + 'candle ' + (mt.last + 1) + ': wick (' + (long ? w.h : w.l) + ') melewati open acuan ' + mt.ref + ', tetapi body close ' + w.c + ' di sisi yang sama');
+          var any = false; for (k = mt.last + 1; k < cs.length; k++) if (long ? cs[k].c > mt.ref : cs[k].c < mt.ref) any = true;
+          check(!any, p + 'sampai akhir data tidak ada body close melewati open acuan');
+          var zb = ex.overlays.filter(function (o) { return o.type === 'zone'; })[0];
+          check(near(pos.entry, r2((zb.top + zb.bottom) / 2)) && long && pos.sl < zb.bottom, p + 'LP di 50% zona candle ' + zb.i1 + ' sebelum konfirmasi, SL di luar zona -> kena SL');
+          check(near(zb.top, cs[mt.last].h) && near(zb.bottom, cs[mt.last].l) && pos.i > mt.last && firstTouch(cs, mt.last + 2, pos.entry) === pos.i, p + 'zona = high–low candle ' + mt.last + '; harga menyentuh 50% di candle ' + pos.i);
+        }
+      });
+
+      /* ---------- QML ---------- */
+      bullbear('qml', ['qml-bull', 'qml-bear', 'qml-bad']);
+      EX.qml.forEach(function (ex) {
+        var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long';
+        var det = detectQML(cs)[0], z = ex.overlays.filter(function (o) { return o.type === 'zone'; })[0];
+        var qln = lineOf(ex, ex.valid ? 'QML' : 'QML?');
+        var sws = detectSwings(cs);
+        var lsSw = sws.filter(function (s) { return s.i === mt.ls; })[0], lhSw = sws.filter(function (s) { return s.i === mt.lh; })[0], hdSw = sws.filter(function (s) { return s.i === mt.head; })[0];
+        check(!!lsSw && lsSw.type === (long ? 'L' : 'H') && near(lsSw.price, mt.qml), p + 'candle ' + mt.ls + ' = swing ' + (long ? 'low' : 'high') + ' left shoulder (' + mt.qml + ')');
+        check(!!lhSw && lhSw.type === (long ? 'H' : 'L'), p + 'candle ' + mt.lh + ' = ' + (long ? 'LH' : 'HL') + ' terakhir sebelum head');
+        check(!!hdSw && hdSw.type === (long ? 'L' : 'H') && (long ? hdSw.price < lsSw.price : hdSw.price > lsSw.price), p + 'head (candle ' + mt.head + ', ' + (hdSw && hdSw.price) + ') = ' + (long ? 'lower low di bawah' : 'higher high di atas') + ' left shoulder');
+        check(!!qln && near(qln.y, mt.qml) && qln.i1 === mt.ls, p + 'garis QML di level left shoulder ' + mt.qml + ' mulai dari candle ' + mt.ls);
+        check(ex.overlays.some(function (o) { return o.type === 'text' && o.text === 'LS' && o.i === mt.ls; }) && ex.overlays.some(function (o) { return o.type === 'text' && o.text === 'Head' && o.i === mt.head; }), p + 'label LS dan Head di chart');
+        check(z.bottom <= mt.qml && mt.qml <= z.top, p + 'zona ' + z.kind + ' (' + z.bottom + '–' + z.top + ') berada di area QML ' + mt.qml);
+        check(near(pos.entry, r2((z.top + z.bottom) / 2)) && (long ? pos.sl < z.bottom : pos.sl > z.top), p + 'entry 50% zona, SL di luar sisi jauh');
+        if (ex.valid) {
+          check(!!det && det.dir === (long ? 'bull' : 'bear') && det.ls === mt.ls && det.lh === mt.lh && det.head === mt.head && det.choch === mt.choch && near(det.qml, mt.qml), p + 'deteksi: QML ' + (long ? 'bullish' : 'bearish') + ' (LS ' + mt.ls + ', LH ' + mt.lh + ', head ' + mt.head + ', CHoCH ' + mt.choch + ')');
+          var ev = chochAt(ex, pos, p, mt.choch, long ? 'up' : 'down');
+          check(!!ev && ev.trend === (long ? 'down' : 'up'), p + 'tren sebelum CHoCH = ' + (long ? 'downtrend (LH+LL)' : 'uptrend (HH+HL)'));
+          var o = detectOB(cs).filter(function (x) { return x.i === z.i1; })[0];
+          check(z.kind === 'OB' && !!o && near(o.top, z.top) && near(o.bottom, z.bottom) && o.dir === (long ? 'bull' : 'bear'), p + 'zona gambar = zona deteksi OB (candle ' + z.i1 + ')');
+          check(firstTouch(cs, mt.choch + 1, mt.qml) === pos.i && pos.i > mt.choch, p + 'setelah CHoCH, harga kembali ke level QML pertama kali di candle ' + pos.i + ' (entry setelah konfirmasi close)');
+          var pierced = false; for (var q = mt.choch + 1; q <= pos.i; q++) if (long ? cs[q].c < z.bottom : cs[q].c > z.top) pierced = true;
+          check(!pierced, p + 'zona belum ditembus body close berlawanan sampai entry');
+        } else {
+          check(detectQML(cs).length === 0 && !detectBreaks(cs).some(function (e) { return e.kind === 'CHoCH'; }), p + 'deteksi: tidak ada CHoCH sama sekali, jadi tidak ada QML');
+          var wk = cs[19];
+          var lhP = lhSw.price;
+          check(wk.h > lhP && Math.max(wk.o, wk.c) < lhP, p + 'candle 19: wick (' + wk.h + ') melewati LH ' + lhP + ', tetapi body close ' + wk.c + ' di bawahnya');
+          var anyClose = false; for (var r = mt.head + 1; r < cs.length; r++) if (cs[r].c > lhP) anyClose = true;
+          check(!anyClose, p + 'setelah head tidak ada body close di atas LH');
+          check(firstTouch(cs, mt.head + 3, mt.qml) === pos.i, p + 'harga menyentuh level QML? di candle ' + pos.i);
+        }
+      });
+
+      /* ---------- Inducement + turtle soup ---------- */
+      bullbear('inducement', ['ind-bull', 'ind-bear', 'ind-bad']);
+      EX.inducement.forEach(function (ex) {
+        var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long';
+        var cb = long ? cs : mirrorCs(cs), n = cb.length;
+        var lvl = long ? Math.min.apply(null, cs.slice(mt.asia[0], mt.asia[1] + 1).map(function (c) { return c.l; })) : Math.max.apply(null, cs.slice(mt.asia[0], mt.asia[1] + 1).map(function (c) { return c.h; }));
+        var lvb = long ? lvl : window.VyData.mp(lvl);
+        check(near(lvl, mt.level), p + 'level ' + (long ? 'low' : 'high') + ' Asia (candle ' + mt.asia[0] + '–' + mt.asia[1] + ') = ' + lvl);
+        var aln = ex.overlays.filter(function (o) { return o.type === 'line' && /Asia$/.test(o.label); })[0], band = ex.overlays.filter(function (o) { return o.type === 'band'; })[0];
+        check(!!aln && near(aln.y, lvl) && aln.label === (long ? 'Low Asia' : 'High Asia'), p + 'garis level sesi berlabel "' + (aln && aln.label) + '" di ' + lvl);
+        check(!!band && band.label === 'Asia' && band.i1 === mt.asia[0] && band.i2 === mt.asia[1], p + 'pita "Asia" menutupi candle ' + mt.asia[0] + '–' + mt.asia[1]);
+        var obz = ex.overlays.filter(function (o) { return o.type === 'zone' && o.kind === 'OB'; })[0];
+        var obd = detectOB(cs).filter(function (o) { return o.i === mt.ob; })[0];
+        check(!!obd && obd.dir === (long ? 'bull' : 'bear') && near(obd.top, obz.top) && near(obd.bottom, obz.bottom) && obz.i1 === mt.ob, p + 'zona OB gambar = zona deteksi OB ' + (long ? 'bullish' : 'bearish') + ' (candle ' + mt.ob + ')');
+        // orientasi bullish (cermin untuk contoh bearish): inducement = low minor di atas zona OB, disapu sebelum harga menyentuh zona
+        var obH = cb[mt.ob].h, obBotN = long ? obd.bottom : window.VyData.mp(obd.top);
+        check(isMinorLow(cb, mt.idm), p + 'candle ' + mt.idm + ' = swing minor (K=1, bukan swing utama) = inducement');
+        check(cb[mt.idm].l > obH, p + 'inducement (' + (long ? cb[mt.idm].l : cs[mt.idm].h) + ') berada di antara harga dan zona OB (di ' + (long ? 'atas' : 'bawah') + ' zona)');
+        var sIdm = -1; for (var k = mt.idm + 1; k < n; k++) if (cb[k].l < cb[mt.idm].l) { sIdm = k; break; }
+        check(sIdm === mt.sweepIdm, p + 'inducement disapu oleh candle ' + sIdm);
+        var tap = -1; for (k = obd.j + 1; k < n; k++) if (cb[k].l <= obH) { tap = k; break; }
+        check(tap === mt.tap && sIdm < tap, p + 'harga menyentuh zona OB pertama kali di candle ' + tap + ', SETELAH inducement disapu (candle ' + sIdm + ')');
+        check(!!ex.overlays.filter(function (o) { return o.type === 'mark' && o.label === 'Inducement' && o.i === mt.idm; })[0], p + 'penanda Inducement di candle ' + mt.idm);
+        if (ex.valid) {
+          var ts = -1; for (k = mt.asia[1] + 1; k < n; k++) if (cb[k].l < lvb) { ts = k; break; }
+          check(ts === mt.ts && isTurtle(cb[ts], lvb), p + 'candle ' + ts + ' = turtle soup: wick (' + (long ? cs[ts].l : cs[ts].h) + ') menembus level ' + lvl + ', body close ' + cs[ts].c + ' kembali ke dalam');
+          check(sweepAt(cs, ts, long ? 'bull' : 'bear'), p + 'konsisten dengan definisi sweep (wick lewat ekstrem, close kembali)');
+          check(ts > mt.sweepIdm && ts >= tap, p + 'urutan: inducement disapu (' + mt.sweepIdm + ') -> sentuh OB (' + tap + ') -> turtle soup (' + ts + ')');
+          check(ex.overlays.some(function (o) { return o.type === 'mark' && o.label === 'Turtle soup' && o.i === ts; }), p + 'penanda Turtle soup di candle ' + ts);
+          var fz = ex.overlays.filter(function (o) { return o.type === 'zone' && o.kind === 'FVG'; })[0], fd = VyChart.detectFVG(cs).filter(function (f) { return f.i1 === fz.i1; })[0];
+          check(!!fd && near(fd.top, fz.top) && near(fd.bottom, fz.bottom) && (fd.dir === 'bull') === long && fz.i1 === ts, p + 'FVG berikutnya (' + (fd && fd.dir) + ') terbentuk dari candle turtle soup ' + ts + ', zona gambar = zona deteksi');
+          check(near(pos.entry, r2((fz.top + fz.bottom) / 2)) && (long ? pos.sl < fz.bottom : pos.sl > fz.top), p + 'entry 50% FVG, SL di luar sisi jauh');
+          check(pos.i > fd.i3 && firstTouch(cs, fd.i3 + 1, pos.entry) === pos.i, p + 'entry SETELAH FVG selesai, saat retest pertama ke 50% (candle ' + pos.i + ')');
+          var fp = false; for (var q = fd.i3 + 1; q <= pos.i; q++) if (long ? cs[q].c < fz.bottom : cs[q].c > fz.top) fp = true;
+          check(!fp, p + 'FVG belum ditembus body close berlawanan sampai entry');
+          check(cb.slice(mt.asia[1] + 1).every(function (c, i) { return mt.asia[1] + 1 + i >= ts || c.c >= obBotN; }) && cb[ts].c >= obBotN, p + 'OB belum ditembus body close berlawanan sebelum dan saat turtle soup');
+        } else {
+          var anyTs = false; for (k = mt.asia[1] + 1; k < n; k++) if (isTurtle(cb[k], lvb)) anyTs = true;
+          check(!anyTs && mt.ts === -1, p + 'deteksi: tidak ada turtle soup sampai akhir data');
+          var b0 = cb[20], b1 = cb[21];
+          check(b0.l < lvb && b0.c < lvb && b1.c < lvb && cb.slice(20).every(function (c) { return c.c < lvb; }), p + 'candle 20 body close ' + cs[20].c + ' DI LUAR level ' + lvl + ' dan candle 21 bertahan (' + cs[21].c + '): BOS, bukan turtle soup');
+          check(near(pos.entry, r2((obz.top + obz.bottom) / 2)) && (long ? pos.sl < obz.bottom : pos.sl > obz.top) && firstTouch(cs, obd.j + 1, pos.entry) === pos.i, p + 'LP di 50% OB (candle ' + pos.i + ') -> SL di luar zona kena saat harga menembus level');
+        }
+      });
+
+      /* ---------- AMD ---------- */
+      bullbear('amd', ['amd-bull', 'amd-bear', 'amd-bad']);
+      EX.amd.forEach(function (ex) {
+        var p = ex.id + ': ', cs = ex.candles, mt = ex.meta, pos = common(ex, p), long = pos.side === 'long';
+        var cb = long ? cs : mirrorCs(cs), ci = consInfo(cs, mt.from, mt.to);
+        var rz = ex.overlays.filter(function (o) { return o.type === 'zone' && o.kind === 'OFF'; })[0];
+        check(ci.ok && near(rz.top, ci.top) && near(rz.bottom, ci.bottom) && rz.i1 === mt.from && rz.i2 === mt.to, p + 'fase A: range sideways candle ' + mt.from + '–' + mt.to + ' (' + r2(ci.bottom) + '–' + r2(ci.top) + ', ' + ci.n + ' candle) = zona Range di chart');
+        var bands = ex.overlays.filter(function (o) { return o.type === 'band'; });
+        function bandOf(lbl) { return bands.filter(function (b) { return b.label === lbl; })[0]; }
+        check(!!bandOf('A') && bandOf('A').i1 === mt.from && bandOf('A').i2 === mt.to, p + 'pita fase A menutupi candle ' + mt.from + '–' + mt.to);
+        check(!!bandOf('D') && bandOf('D').i1 === mt.exp && bandOf('D').i2 < cs.length, p + 'pita fase D mulai di candle expansion ' + mt.exp);
+        var ex9 = expInfo(cs, mt.exp);
+        check(ex9.ok && ex9.dir === (long ? 'up' : 'down') && mt.dir === ex9.dir, p + 'fase D: candle ' + mt.exp + ' = expansion ' + ex9.dir + ' (range ' + r2(ex9.ratio) + 'x rata-rata 10 candle, body besar, close dekat ekstrem)');
+        check(long ? cs[mt.exp].c > ci.top : cs[mt.exp].c < ci.bottom, p + 'candle expansion body close (' + cs[mt.exp].c + ') menembus sisi ' + (long ? 'atas' : 'bawah') + ' range');
+        var det = detectAMDUp(cb, mt.from, mt.to);
+        if (ex.valid) {
+          check(!!det && det.sweep === mt.sweep && det.exp === mt.exp, p + 'deteksi AMD: range -> sweep (candle ' + mt.sweep + ') -> expansion (candle ' + mt.exp + ')');
+          var sw = cs[mt.sweep];
+          check(long ? (sw.l < ci.bottom && sw.c > ci.bottom) : (sw.h > ci.top && sw.c < ci.top), p + 'fase M: candle ' + mt.sweep + ' menyapu ' + (long ? 'low' : 'high') + ' range (wick ' + (long ? sw.l : sw.h) + ') lalu close kembali ke dalam (' + sw.c + ')');
+          check(sweepAt(cs, mt.sweep, long ? 'bull' : 'bear'), p + 'konsisten dengan definisi sweep (wick lewat ekstrem, close kembali)');
+          check(!!bandOf('M') && bandOf('M').i1 === mt.sweep && bandOf('M').i2 < mt.exp, p + 'pita fase M mulai di candle sweep ' + mt.sweep + ' dan selesai sebelum expansion');
+          var clean = true; for (var k = mt.to + 1; k < mt.exp; k++) if (cs[k].c < ci.bottom || cs[k].c > ci.top) clean = false;
+          check(clean, p + 'selama fase M tidak ada body close di luar range');
+          check(mt.dir === (long ? 'up' : 'down') && ex.overlays.some(function (o) { return o.type === 'mark' && o.label === 'Sweep' && o.i === mt.sweep; }), p + 'expansion berlawanan dengan sisi sweep + penanda Sweep di candle ' + mt.sweep);
+          var z = zoneChecks(ex, pos, p);
+          check(!!z && z.kind === 'FVG' && z.i1 + 1 === mt.exp, p + 'FVG tertinggal oleh expansion (candle tengah FVG = candle ' + mt.exp + ')');
+          var d = VyChart.detectFVG(cs).filter(function (f) { return f.i1 === z.i1; })[0];
+          check(!!d && pos.i > d.i3 && firstTouch(cs, d.i3 + 1, pos.entry) === pos.i, p + 'entry SETELAH expansion, saat retest pertama ke 50% FVG (candle ' + pos.i + ')');
+        } else {
+          check(det === null && mt.sweep === -1, p + 'deteksi AMD: tidak ada sweep sebelum expansion, BUKAN AMD');
+          var noWick = true; for (k = mt.to + 1; k < mt.exp; k++) if (cs[k].h > ci.top || cs[k].l < ci.bottom) noWick = false;
+          check(noWick, p + 'candle ' + (mt.to + 1) + '–' + (mt.exp - 1) + ' tetap di dalam range, tanpa wick yang menyapu sisi mana pun');
+          check(!bandOf('M') && bands.some(function (b) { return b.label === 'M?'; }), p + 'chart menandai fase M sebagai "M?" (tidak ada)');
+          var z2 = ex.overlays.filter(function (o) { return o.type === 'zone' && o.kind === 'FVG'; })[0], d2 = VyChart.detectFVG(cs).filter(function (f) { return f.i1 === z2.i1; })[0];
+          check(!!d2 && near(d2.top, z2.top) && near(d2.bottom, z2.bottom) && near(pos.entry, r2((z2.top + z2.bottom) / 2)) && pos.sl < z2.bottom, p + 'FVG hasil expansion = zona deteksi; LP di 50%, SL di luar zona');
+          check(firstTouch(cs, d2.i3 + 1, pos.entry) === pos.i, p + 'harga menyentuh 50% FVG di candle ' + pos.i + ' lalu gagal bertahan -> SL');
+        }
+      });
+
+      /* ---------- Kelengkapan kartu baru ---------- */
+      var NEW9 = ['cisd', 'qml', 'inducement', 'amd'];
+      NEW9.forEach(function (k) {
+        var c = window.CONCEPTS.filter(function (x) { return x.id === k; })[0];
+        check(!!c && c.group === 'Lanjut' && c.examples === k && !!(c.apa && c.cara && c.syarat && c.salah), 'kartu ' + k + ': ada, grup Lanjut, 4 bagian lengkap, contoh = ' + k);
+        var parts = [c.apa, c.cara, c.syarat, c.salah].map(function (t) { return (t.match(/[.!?](\s|$)/g) || []).length; });
+        check(parts.every(function (n) { return n >= 1 && n <= 3; }), 'kartu ' + k + ': tiap bagian 1–3 kalimat (' + parts.join(',') + ')');
+        var nQ = window.QUIZ.filter(function (q) { return q.tag === k; }).length;
+        check(nQ >= 3, 'kuis: tag "' + k + '" punya ' + nQ + ' soal (minimal 3)');
+        check(window.QUIZ.filter(function (q) { return q.tag === k && q.cat === 'lanjut'; }).length === nQ, 'kuis: semua soal tag "' + k + '" ada di kategori Lanjut');
+        check(window.FLASHCARDS.some(function (f) { return f.id === k; }), 'flashcard: kartu "' + k + '" ada');
+        check(window.GLOSSARY.some(function (g) { return g.link === k; }), 'glosarium: ada istilah yang menaut ke kartu "' + k + '"');
+        var ex = EX[k], allTx = ex.map(function (e) { return JSON.stringify(e.overlays); }).join(' ');
+        check(ex.every(function (e) { return !!e.hint && e.overlays.some(function (o) { return o.type === 'position'; }) && e.overlays.some(function (o) { return o.type === 'zone' && (o.kind === 'FVG' || o.kind === 'OB'); }); }), k + ': tiap contoh punya petunjuk tebak, zona FVG/OB, dan kotak LP/SP + SL/TP');
+        check(ex.every(function (e) { return e.symbol === 'XAUUSD' && e.tf === 'M15' && e.overlays.some(function (o) { return o.type === 'arrow' && o.label === 'Entry'; }); }), k + ': label XAUUSD · M15 dan panah Entry di tiap contoh');
+        check(/"kind":"(FVG|OB)"/.test(allTx), k + ': ada label FVG/OB di overlay');
+      });
+      check(['cisd', 'qml'].every(function (k) { return window.CONCEPTS.filter(function (c) { return c.id === k; })[0].syarat.indexOf('bervariasi antar trader') >= 0; }) && ['CISD (Change in State of Delivery)', 'QML (Quasimodo Level)'].every(function (t) { return window.GLOSSARY.filter(function (g) { return g.t === t; })[0].arti.indexOf('bervariasi antar trader') >= 0; }), 'CISD dan QML: catatan "bervariasi antar trader" tampil di kartu dan glosarium');
+      ['CISD (Change in State of Delivery)', 'Delivery', 'Open acuan (CISD)', 'QML (Quasimodo Level)', 'Left shoulder', 'Head', 'Inducement', 'Turtle soup (liquidity raid)', 'AMD (Accumulation, Manipulation, Distribution)', 'Accumulation', 'Manipulation', 'Distribution'].forEach(function (t) {
+        check(window.GLOSSARY.some(function (g) { return g.t === t; }), 'glosarium: istilah "' + t + '" ada');
+      });
+      check(window.GLOSSARY.filter(function (g) { return g.t === 'Turtle soup (liquidity raid)'; })[0].arti.indexOf('BOS') >= 0 && window.CONCEPTS.filter(function (c) { return c.id === 'inducement'; })[0].apa.indexOf('liquidity sweep') >= 0, 'turtle soup: beda dari liquidity sweep disebut di kartu; body close bertahan di luar level = BOS di glosarium');
+      // Penanda khusus di chart (label teks) per kartu
+      var MARK = { cisd: ['Open acuan', 'CISD', 'Delivery', 'Sweep'], qml: ['QML', 'LS', 'Head', 'CHoCH'], inducement: ['Inducement', 'Turtle soup', 'Asia', 'OB', 'FVG'], amd: ['A', 'M', 'D', 'Sweep', 'Range', 'FVG'] };
+      Object.keys(MARK).forEach(function (k) {
+        var txt = EX[k].filter(function (e) { return e.valid; }).map(function (e) { return e.overlays.map(function (o) { return (o.label || '') + '|' + (o.text || ''); }).join('|'); }).join('|').split('|');
+        check(MARK[k].every(function (t) { return txt.indexOf(t) >= 0; }), k + ': penanda khusus di contoh valid: ' + MARK[k].join(', '));
+      });
+    })();
   })();
 
   lines.push(fail ? ('TOTAL GAGAL: ' + fail) : 'SEMUA LOLOS');

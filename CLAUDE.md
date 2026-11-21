@@ -63,6 +63,11 @@ Belajar (materi, flashcard, glosarium) · Latihan (kuis) · Setup (checklist set
 - Consolidation: harga sideways dalam range dengan candle kecil, likuiditas menumpuk di atas dan bawah range. Breakout valid: body close di luar range lalu bertahan. Fakeout: wick keluar range lalu close kembali ke dalam (sama dengan sweep).
 - Reversal: struktur berbalik (CHoCH, lalu konfirmasi). Continuation: pullback ke FVG/OB lalu BOS searah tren.
 - Breaker block: OB yang ditembus body close berlawanan, lalu zonanya berbalik peran (analog IFVG), biasanya setelah sweep dan CHoCH. Catatan: definisi breaker bervariasi antar trader; ini definisi VyTrade.
+- CISD (Change in State of Delivery): setelah rangkaian candle searah (delivery) yang membentuk sebuah swing, harga body close melewati open candle pertama rangkaian itu ke arah berlawanan. Bullish CISD: setelah rangkaian candle turun yang berakhir di low, body close di atas open candle turun pertama rangkaian itu. Bearish kebalikannya. Hanya konfirmasi di TF entry (biasanya setelah sweep), bukan sinyal tunggal. Entry tetap di FVG/OB yang tercipta dari gerakan CISD. Catatan: definisi CISD bervariasi antar trader; ini definisi VyTrade.
+- QML (Quasimodo Level), versi bearish: uptrend (HH dan HL), harga membuat higher high (head) lalu CHoCH bearish (body close di bawah HL terakhir), lalu kembali ke level high "left shoulder" (high sebelum head) sebagai QML. Entry SP di QML bila ada FVG/OB di area itu. Bullish kebalikannya. Catatan: penentuan level QML bervariasi antar trader; ini definisi VyTrade.
+- Inducement: swing minor (pullback kecil) antara posisi harga dan zona FVG/OB yang disapu dulu sebelum harga bereaksi di zona. Menjebak trader yang masuk terlalu awal.
+- Turtle soup (liquidity raid): wick menembus high/low penting (equal high/low, high/low sesi Asia, high/low n-candle) lalu body close kembali ke dalam. Entry berlawanan arah tembusan di FVG/OB berikutnya. Beda dari kartu "Liquidity sweep": turtle soup menekankan level besar atau level sesi. Body close yang bertahan di luar level = BOS, bukan turtle soup.
+- AMD (Accumulation, Manipulation, Distribution): fase 1 range sideways, fase 2 sweep atau fakeout ke satu sisi range yang berlawanan dengan tujuan, fase 3 expansion ke arah sebenarnya. Pada sesi: Asia sering menjadi range, London sering menjadi manipulasi, New York sering menjadi distribusi, tetapi itu kecenderungan, bukan aturan.
 
 ## Cara baca top-down (urutan 1D, 4H, 1H, 30m, 15m, 5m, 1m)
 Tampilkan sebagai halaman bertahap, satu chart per TF, dengan penjelasan sebab-akibat dan perbandingan antar TF:
@@ -94,9 +99,8 @@ Jam sesi ditampilkan dalam WIB. Hitung dengan `Intl.DateTimeFormat` (zona Europe
 Materi bertahap (Dasar, Struktur, Zona, Top-down, Eksekusi, Lanjut) · Kuis (pilihan ganda, benar/salah, tebak zona di chart, selalu ada penjelasan) · Flashcard · Checklist setup · Glosarium + pencarian · Jurnal setup · Progres.
 
 ## Tahap pembangunan
-Tahap 1–7B sudah selesai (kerangka PWA, Dasar, Struktur, Zona, Top-down + Checklist, Kuis/flashcard/glosarium, Jurnal, Lanjut, Eksekusi).
-8. Peta belajar + Level 1 dan Level 2 baru.
-9. Level 3 baru: CISD, QML, inducement & turtle soup, AMD.
+Tahap 1–8 sudah selesai (kerangka PWA, Dasar, Struktur, Zona, Top-down + Checklist, Kuis/flashcard/glosarium, Jurnal, Lanjut, Eksekusi, Peta belajar + Level 1 dan Level 2 baru).
+9. Level 3 baru: kartu CISD, QML, inducement & turtle soup, AMD (masing-masing minimal 2 contoh valid + 1 BELUM VALID, penanda khusus di chart, flashcard, glosarium, minimal 3 soal kuis).
 10. Level 4 Expert (IRL ke ERL, narasi bias HTF) + 6 studi kasus.
 11. Simulasi baca chart, kalkulator lot, tag kesalahan jurnal.
 Setelah tahap 1 dan seterusnya, pandu deploy ke GitHub Pages (klik demi klik) agar bisa dipasang di iPhone.

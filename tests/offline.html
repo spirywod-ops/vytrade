@@ -38,8 +38,16 @@
       ['hammer', 'engulfing', 'doji', 'expansion', 'consolidation', 'reversal', 'breaker'].forEach(function (k) {
         check(files.indexOf('./data/examples/' + k + '.js') >= 0, 'FILES memuat data/examples/' + k + '.js');
       });
+      ['cisd', 'qml', 'inducement', 'amd'].forEach(function (k) {
+        check(files.indexOf('./data/examples/' + k + '.js') >= 0, 'FILES memuat data/examples/' + k + '.js');
+      });
       ['./js/progres.js', './data/levels.js'].forEach(function (f) { check(files.indexOf(f) >= 0, 'FILES memuat ' + f); });
-      done();
+      return fetch('../index.html').then(function (r) { return r.text(); }).then(function (html) {
+        var refs = (html.match(/(?:src|href)="(?!https?:|#)[^"]+"/g) || []).map(function (x) { return './' + x.replace(/^(?:src|href)="/, '').replace(/"$/, ''); });
+        var notIn = refs.filter(function (f) { return files.indexOf(f) < 0; });
+        check(refs.length > 30 && notIn.length === 0, 'semua ' + refs.length + ' file yang dimuat index.html ada di FILES' + (notIn.length ? ' (kurang: ' + notIn.join(', ') + ')' : ''));
+        done();
+      });
     });
   }).catch(function (e) { check(false, 'error: ' + e); done(); });
 })();

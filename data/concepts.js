@@ -166,6 +166,34 @@ window.CONCEPTS = [
     cara: 'Lihat jam sesi dalam WIB di halaman ini (dihitung otomatis, ikut berubah saat DST). Overlap London dan New York biasanya paling ramai, Asia lebih tenang.',
     syarat: 'Sesi hanya bonus, bukan syarat wajib setup. Pilih entry di jam sesi aktif (London atau New York) dan hindari 1–2 menit sebelum rilis berita besar.',
     salah: 'Menghafal jam WIB sebagai angka tetap padahal bergeser saat DST. Menganggap semua candle di sesi aktif otomatis valid juga keliru.'
+  },
+  {
+    id: 'cisd', group: 'Lanjut', title: 'CISD (Change in State of Delivery)', examples: 'cisd',
+    apa: 'CISD adalah tanda arah pengiriman harga (delivery) berganti. Setelah rangkaian candle searah, harga body close melewati open candle pertama rangkaian itu ke arah berlawanan.',
+    cara: 'Cari beberapa candle turun berurutan yang berakhir di low (sering setelah sweep), lalu tandai open candle turun pertamanya. Body close di atas garis itu = bullish CISD; bearish kebalikannya.',
+    syarat: 'Wajib body close melewati open acuan; wick saja belum CISD. CISD hanya konfirmasi di TF entry, bukan sinyal tunggal, dan entry tetap di FVG/OB yang tercipta dari gerakan itu. Definisi CISD bervariasi antar trader; ini definisi VyTrade.',
+    salah: 'Menyebut CISD padahal hanya wick yang melewati open acuan. Entry sebelum candle penembus close, atau tanpa menunggu harga kembali ke FVG/OB, juga keliru.'
+  },
+  {
+    id: 'qml', group: 'Lanjut', title: 'QML (Quasimodo Level)', examples: 'qml',
+    apa: 'QML adalah level tempat harga sering bereaksi setelah pola head dan CHoCH. Levelnya adalah high atau low "left shoulder", yaitu swing sebelum head.',
+    cara: 'Versi bearish: uptrend (HH dan HL), harga membuat higher high (head), lalu CHoCH bearish (body close di bawah HL terakhir). Tarik garis di high left shoulder, tunggu harga kembali ke sana, dan cari SP di FVG/OB di area itu. Versi bullish kebalikannya.',
+    syarat: 'Wajib ada head (higher high atau lower low baru) dan CHoCH dengan body close; tanpa CHoCH, level itu belum sah. Entry hanya bila ada FVG/OB di area QML. Penentuan level QML bervariasi antar trader; ini definisi VyTrade.',
+    salah: 'Menggambar QML sebelum CHoCH terjadi, atau menganggap wick di atas LH/HL sebagai CHoCH. Entry langsung di garis QML tanpa FVG/OB juga keliru.'
+  },
+  {
+    id: 'inducement', group: 'Lanjut', title: 'Inducement & turtle soup', examples: 'inducement',
+    apa: 'Inducement adalah swing minor (pullback kecil) di antara harga dan zona FVG/OB yang disapu dulu sebelum harga bereaksi di zona; ia menjebak trader yang masuk terlalu awal. Turtle soup adalah wick yang menembus high/low penting (equal high/low, high/low sesi Asia, atau high/low n-candle) lalu body close kembali ke dalam. Bedanya dengan liquidity sweep: turtle soup menekankan level besar atau level sesi.',
+    cara: 'Untuk inducement, tandai pullback kecil di atas zona (buy) atau di bawah zona (sell), lalu tunggu harga menyapunya. Untuk turtle soup, tandai level besar seperti high/low Asia; wick menembus, body close kembali ke dalam. Entry berlawanan arah tembusan di FVG/OB berikutnya.',
+    syarat: 'Turtle soup butuh wick menembus level dan body close kembali ke dalam. Kalau body close bertahan di luar level, itu BOS dan setup batal. Keduanya hanya konteks; entry tetap di FVG/OB.',
+    salah: 'Masuk di inducement pertama tanpa menunggu harga menyapunya dan bereaksi di zona. Menyebut turtle soup padahal body close bertahan di luar level juga keliru.'
+  },
+  {
+    id: 'amd', group: 'Lanjut', title: 'AMD (Accumulation, Manipulation, Distribution)', examples: 'amd',
+    apa: 'AMD adalah tiga fase gerak harga. Fase 1 range sideways (accumulation), fase 2 sweep atau fakeout ke satu sisi range (manipulation), fase 3 expansion ke arah sebenarnya (distribution).',
+    cara: 'Tandai range, lalu cari wick yang menyapu satu sisi range dan close kembali di dalam. Setelah itu tunggu expansion ke sisi berlawanan dan entry di FVG/OB yang tertinggal. Pada sesi, Asia sering jadi range, London manipulasi, New York distribusi.',
+    syarat: 'Wajib ada sweep sebelum expansion, dan expansion mengarah berlawanan dengan sweep. Pola sesi itu kecenderungan, bukan aturan. AMD hanya konteks; entry tetap di FVG/OB.',
+    salah: 'Menyebut AMD padahal tidak ada sweep sebelum expansion. Mengunci jam sesi sebagai aturan juga keliru.'
   }
 ];
 

@@ -62,5 +62,17 @@ window.GLOSSARY = [
   { t: 'Reversal', arti: 'Struktur berbalik: CHoCH lalu konfirmasi. Entry tetap di FVG atau OB.', link: 'reversal' },
   { t: 'Continuation', arti: 'Tren lanjut: pullback ke FVG/OB lalu BOS searah tren.', link: 'reversal' },
   { t: 'Pullback', arti: 'Gerak balik sementara melawan tren, misalnya harga naik sebentar saat downtrend. Dalam continuation, pullback berhenti di FVG atau OB.', link: 'reversal' },
-  { t: 'Breaker block', arti: 'OB yang ditembus body close berlawanan, lalu zonanya berbalik peran. Definisi breaker bervariasi antar trader; ini definisi VyTrade.', link: 'breaker' }
+  { t: 'Breaker block', arti: 'OB yang ditembus body close berlawanan, lalu zonanya berbalik peran. Definisi breaker bervariasi antar trader; ini definisi VyTrade.', link: 'breaker' },
+  { t: 'CISD (Change in State of Delivery)', arti: 'Body close melewati open candle pertama sebuah rangkaian candle searah, ke arah berlawanan. Hanya konfirmasi; definisi bervariasi antar trader.', link: 'cisd' },
+  { t: 'Delivery', arti: 'Rangkaian candle searah (misalnya beberapa candle turun berurutan) yang membentuk sebuah swing.', link: 'cisd' },
+  { t: 'Open acuan (CISD)', arti: 'Open candle pertama dari rangkaian delivery. Body close melewatinya ke arah berlawanan = CISD.', link: 'cisd' },
+  { t: 'QML (Quasimodo Level)', arti: 'Level high/low left shoulder tempat harga kembali setelah head dan CHoCH. Entry hanya bila ada FVG/OB di area itu; penentuan level bervariasi antar trader.', link: 'qml' },
+  { t: 'Left shoulder', arti: 'Swing sebelum head pada pola QML. Levelnya menjadi QML.', link: 'qml' },
+  { t: 'Head', arti: 'Higher high (atau lower low) baru yang diikuti CHoCH pada pola QML.', link: 'qml' },
+  { t: 'Inducement', arti: 'Swing minor (pullback kecil) antara harga dan zona FVG/OB yang disapu dulu sebelum harga bereaksi di zona. Menjebak trader yang masuk terlalu awal.', link: 'inducement' },
+  { t: 'Turtle soup (liquidity raid)', arti: 'Wick menembus high/low penting (equal high/low, high/low sesi Asia, high/low n-candle) lalu body close kembali ke dalam. Body close yang bertahan di luar level adalah BOS.', link: 'inducement' },
+  { t: 'AMD (Accumulation, Manipulation, Distribution)', arti: 'Tiga fase: range sideways, sweep atau fakeout ke satu sisi range, lalu expansion ke arah sebenarnya. Pola sesi hanya kecenderungan.', link: 'amd' },
+  { t: 'Accumulation', arti: 'Fase 1 AMD: harga sideways dalam range dengan candle kecil.', link: 'amd' },
+  { t: 'Manipulation', arti: 'Fase 2 AMD: sweep atau fakeout ke satu sisi range yang berlawanan dengan tujuan harga.', link: 'amd' },
+  { t: 'Distribution', arti: 'Fase 3 AMD: expansion ke arah sebenarnya setelah manipulation.', link: 'amd' }
 ];
